@@ -1,1 +1,1 @@
-# publishing-service
+# @nuxt4-layers/publishing-service
