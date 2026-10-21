@@ -2,7 +2,7 @@
 
 `@nuxt4-layers/publisher/contracts` is the only supported import path for this capability's types and pure helpers. It imports nothing but `zod`: no Nuxt, Vue, h3, server code, driver or other `@nuxt4-layers/*` package.
 
-The publisher answers one question: **which version of which document is published at which address, for whom, now?** It owns the lifecycle every published document shares, and knows nothing about what any document is: every document type is the host's registration (§3). This is contract version 1 (§17), drafted before the implementation; section numbers are stable.
+The publisher answers one question: **which version of which document is published at which address, for whom, now?** It owns the lifecycle every published document shares, and knows nothing about what any document is: every document type is the host's registration (§3). This is contract version 1 (§17); section numbers are stable.
 
 ## 1. Boundaries
 
@@ -282,17 +282,17 @@ Export, import, submissions, erasure, maintenance and the relay are never endpoi
 
 ## 15. Presentation
 
-Components, composables and pages live in `app/` and reach the server only through the layer's composable, `usePublisher()`. They decide nothing. Text comes from `app/publisher-messages.ts` through `usePublisherText()`; hosts override wording in `app.config.ts` under `publisher.messages`, and a type's own words come from its `label`. Styling uses only Theme Manager's SemanticPresentationTheme vocabulary (`publisherClasses`); hosts add `@nuxt4-layers/publisher/tailwind.css` to their stylesheet.
+Components, composables and pages live in `app/` and reach the server only through the layer's composable, `usePublisher()`. They decide nothing. Text comes from `app/publisher-messages.ts` through `usePublisherText()`; hosts override wording in `app.config.ts` under `publisher.messages` (`publisher.language` names their language, for the screens that show only them), and a type's own words come from its `label`. Published Markdown carries no classes; `tailwind.css` underlines its links and marks its lists. Styling uses only Theme Manager's SemanticPresentationTheme vocabulary (`publisherClasses`); hosts add `@nuxt4-layers/publisher/tailwind.css` to their stylesheet.
 
 ### 15.1 Public
 
-- One named catch-all route, `publisher-document`, registered by `modules/publisher-pages.ts` (`publisher: { document: { enabled } }`), renders whatever `resolve` answers: a document through its type's renderer, a 301 to a redirect, or the designed not-found component (`PublisherNotFound`) with status 404. A host's own routes take precedence over it.
+- One named catch-all route, `publisher-document`, registered by `modules/publisher-routes.ts` (`publisher: { document: { enabled } }`), renders whatever `resolve` answers: a document through its type's renderer, a 301 to a redirect, or the designed not-found component (`PublisherNotFound`) with status 404. A host's own routes take precedence over it.
 - The route sets the title (through the title template), description (the summary), canonical URL, `og:title`, `og:description`, `og:type` (`article`), `og:url`, `article:published_time` and `article:modified_time`, and `noindex` on a preview, which is marked as one.
-- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each Markdown field in order). `PublisherMarkdown` renders Markdown safely anywhere. Authors are named only through the person-name slot.
+- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each Markdown field in order, from the rendered answer's `markdown`). `PublisherMarkdown` renders Markdown safely anywhere. Authors are named only through the person-name slot.
 
 ### 15.2 Administration
 
-Pages registered by the module (`publisher: { pages: { enabled, paths: { documents, document, moderation } }, signIn }`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; a generic edit form built from the type's JSON Schema (as Configuration's `ConfigurationValueField`), its Markdown fields in the host's editor or a plain text area; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
+Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; a generic edit form built from the type's JSON Schema (as Configuration's `ConfigurationValueField`), its Markdown fields in the host's editor or a plain text area; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
 
 Deliberate pairings, which a host's theme must keep legible (`app/publisher-pairings.ts`): `pen-muted-default` on `fill-base-default` (hints, notes and definition terms), `edge-error-default` on `fill-input-default` (an invalid field's border), `edge-base-active` on `fill-base-default` (the focus indicator).
 

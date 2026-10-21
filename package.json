@@ -1,6 +1,6 @@
 {
   "name": "@nuxt4-layers/publisher",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Nuxt 4 foundation layer for publishing documents of types the host registers: drafts, versions, review, scheduling, addresses, safe Markdown, listings and feeds.",
