@@ -118,7 +118,7 @@ describe('text', () => {
   })
 
   it('names no document type: a type\'s words come from its registration', () => {
-    expect(Object.values(PUBLISHER_MESSAGES).filter(message => /(?<![\w-])(?:page|post|review|menu|blog)s?(?![\w-])/i.test(message))).toEqual([])
+    expect(Object.values(PUBLISHER_MESSAGES).filter(message => /(?<![\w-])(?:[Pp]age|[Pp]ost|[Rr]eview|[Mm]enu|[Bb]log)s?(?![\w-])/.test(message))).toEqual([])
   })
 
   it('never takes words from anywhere but the catalogue', () => {

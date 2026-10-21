@@ -82,8 +82,8 @@ describe('the public contract', () => {
   })
 
   it('names no document type anywhere in the layer\'s own source, outside comments and the examples', () => {
-    // `in-review` is a status, and `.post.ts` a file name: neither names a type.
-    const named = /(?<![\w-])(?:page|post|review|menu|blog)s?(?![\w-])/i
+    // `in-review` is a status, `.post.ts` a file name and `POST` an HTTP method: none names a type.
+    const named = /(?<![\w-])(?:[Pp]age|[Pp]ost|[Rr]eview|[Mm]enu|[Bb]log)s?(?![\w-])/
     const offending = layerFiles.flatMap(file => code(file).split('\n').filter(line => named.test(line)).map(line => `${file}: ${line.trim()}`))
     expect(offending).toEqual([])
   })

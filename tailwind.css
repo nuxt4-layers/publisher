@@ -10,3 +10,25 @@
  *   @import "@nuxt4-layers/publisher/tailwind.css";
  */
 @source "./app";
+
+/*
+ * Published Markdown carries no classes of its own (it is drawn from the
+ * dialect's tree), so its elements are styled here: links underlined, so
+ * they are told apart from text without colour (WCAG 1.4.1), and lists
+ * marked.
+ */
+.publisher-markdown a {
+  text-decoration-line: underline;
+}
+.publisher-markdown ul {
+  list-style-type: disc;
+  padding-inline-start: 1.5em;
+}
+.publisher-markdown ol {
+  list-style-type: decimal;
+  padding-inline-start: 1.5em;
+}
+.publisher-markdown img {
+  max-width: 100%;
+  height: auto;
+}

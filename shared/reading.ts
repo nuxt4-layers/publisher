@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { publisherDocumentSchema } from './documents'
 import { identifierSchema, instantSchema } from './identifiers'
 import { PUBLISHER_ORDERS, typeKeySchema } from './types'
-import { sitePathSchema } from './values'
+import { MARKDOWN_MAX_LENGTH, sitePathSchema } from './values'
 
 /** Reading published documents (docs/contracts.md §7, §8). */
 
@@ -28,6 +28,8 @@ export type PublisherHead = z.infer<typeof publisherHeadSchema>
 export const publisherRenderedSchema = z.strictObject({
   document: publisherDocumentSchema,
   links: publisherResolvedLinksSchema,
+  /** The type's Markdown fields' sources, in the order it declares them, for the generic renderer. */
+  markdown: z.array(z.string().max(MARKDOWN_MAX_LENGTH)).max(1000),
   head: publisherHeadSchema,
   preview: z.boolean(),
 })

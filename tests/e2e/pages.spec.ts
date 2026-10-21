@@ -150,7 +150,7 @@ test.describe('administration pages', () => {
     await page.getByRole('button', { name: 'Save' }).focus()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('status')).toContainText('Saved')
-    await page.getByRole('button', { name: 'Publish' }).focus()
+    await page.getByRole('button', { name: 'Publish', exact: true }).focus()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('status')).toContainText('Published')
     await page.goto('/bulletins/2026/10/21/renamed-news')
