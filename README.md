@@ -4,7 +4,7 @@ Nuxt 4 foundation layer for publishing: which version of which document is publi
 
 A platform foundation layer. It reaches Authorisation, the approvals process, the asset store, the title template, the editor and people's names only through ports the host supplies, and never imports another layer.
 
-**Status:** 1.0.0, contract version 1 ([contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API, the public catch-all route and the administration screens, with every document on a site and editing left to `content-editor` through the editor slot, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
+**Status:** 1.0.0, contract version 1 ([guide](docs/guide.md), [contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md), [headless migration plan](docs/headless-migration.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API, the public catch-all route and the administration screens, with every document on a site and editing left to `content-editor` through the editor slot, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
 
 ## Owns
 
@@ -45,4 +45,6 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 - [ADR-0002 — Composition-Supplied Persistence and Capability-Owned Schemas](https://github.com/nuxt4-layers/platform-architecture/blob/93f3d6fb144b72d61cfb172b6a50eb6c5af9f489/docs/decisions/ADR-0002-composition-supplied-persistence-and-capability-owned-schemas.md)
 - [ADR-0004 — Documentation Placement](https://github.com/nuxt4-layers/platform-architecture/blob/93f3d6fb144b72d61cfb172b6a50eb6c5af9f489/docs/decisions/ADR-0004-documentation-placement.md)
 - [ADR-0006 — Polyglot Persistence and Data-Store Security](https://github.com/nuxt4-layers/platform-architecture/blob/93f3d6fb144b72d61cfb172b6a50eb6c5af9f489/docs/decisions/ADR-0006-polyglot-persistence-and-data-store-security.md)
+- [ADR-0009 — Headless Capability Layers](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0009-headless-capability-layers.md)
+- [ADR-0010 — Documentation Style](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0010-documentation-style.md)
 - [Approvals (two-person rule)](https://github.com/nuxt4-layers/iam-integration/blob/899befcf566775950c4b70b8cf0e7658be1000f9/docs/processes/approvals.md)
