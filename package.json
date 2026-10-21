@@ -1,0 +1,71 @@
+{
+  "name": "@nuxt4-layers/publisher",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nuxt 4 foundation layer for publishing documents of types the host registers: drafts, versions, review, scheduling, addresses, safe Markdown, listings and feeds.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nuxt4-layers/publisher"
+  },
+  "exports": {
+    ".": "./nuxt.config.ts",
+    "./contracts": "./shared/contracts.ts",
+    "./examples": "./examples/index.ts",
+    "./tailwind.css": "./tailwind.css"
+  },
+  "files": [
+    "app",
+    "examples",
+    "markdown",
+    "modules",
+    "server",
+    "shared",
+    "nuxt.config.ts",
+    "tailwind.css",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev:prepare": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm test",
+    "build:playground": "nuxt build playground",
+    "dev": "nuxt dev playground",
+    "test:e2e": "pnpm build:playground && playwright test"
+  },
+  "dependencies": {
+    "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-gfm-strikethrough": "^2.0.1",
+    "mdast-util-gfm-table": "^2.0.0",
+    "micromark-extension-gfm-strikethrough": "^2.1.0",
+    "micromark-extension-gfm-table": "^2.1.2",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "nuxt": "^4.5.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@nuxt4-layers/theme-manager": "git+https://github.com/nuxt4-layers/theme-manager.git#934d1bd33e0731aafea0d454857dc8fbb756ccb2",
+    "@playwright/test": "^1.64.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^24.13.6",
+    "@types/pg": "^8.23.1",
+    "h3": "^1.15.11",
+    "nuxt": "^4.5.2",
+    "pg": "^8.23.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3",
+    "vue": "^3.5.44",
+    "vue-tsc": "^3.3.11"
+  },
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  }
+}
