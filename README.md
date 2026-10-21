@@ -47,5 +47,5 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 - [ADR-0006 — Polyglot Persistence and Data-Store Security](https://github.com/nuxt4-layers/platform-architecture/blob/93f3d6fb144b72d61cfb172b6a50eb6c5af9f489/docs/decisions/ADR-0006-polyglot-persistence-and-data-store-security.md)
 - [ADR-0009 — Headless Capability Layers](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0009-headless-capability-layers.md)
 - [ADR-0010 — Documentation Style](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0010-documentation-style.md)
-- [ADR-0011 — Shared Rich Text and Configurable Copy](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md)
+- [ADR-0011 — Shared Rich Text and Configurable Copy](https://github.com/nuxt4-layers/platform-architecture/blob/667e5310a66c56327f0ef80d43ce01b573ce6d86/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md)
 - [Approvals (two-person rule)](https://github.com/nuxt4-layers/iam-integration/blob/899befcf566775950c4b70b8cf0e7658be1000f9/docs/processes/approvals.md)

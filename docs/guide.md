@@ -2,7 +2,7 @@
 
 > **In short:** register your document types, fill the publisher's ports from the IAM members and your host, then call its services. The publisher stores, versions, approves, publishes and serves documents. How they look is up to you.
 
-This guide describes the publisher once it is headless ([ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0009-headless-capability-layers.md), [ADR-0011](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md); [migration plan](headless-migration.md)). The [contract](contracts.md) is the full reference.
+This guide describes the publisher once it is headless ([ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/667e5310a66c56327f0ef80d43ce01b573ce6d86/docs/decisions/ADR-0009-headless-capability-layers.md), [ADR-0011](https://github.com/nuxt4-layers/platform-architecture/blob/667e5310a66c56327f0ef80d43ce01b573ce6d86/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md); [migration plan](headless-migration.md)). The [contract](contracts.md) is the full reference.
 
 ## What it gives you
 
@@ -88,13 +88,16 @@ import { richTextSchema } from '@nuxt4-layers/rich-text'
 export const postsType = definePublisherDocumentType({
   type: 'post',
   label: { one: 'Post', many: 'Posts' },
-  // The body is a full document; the publisher checks every save against that profile
+  // The body is formatted: a full document, checked on every save against that profile.
+  // Tags are plain strings, edited with standard form controls.
   fields: z.strictObject({ body: richTextSchema({ profile: 'document', max: 50_000 }), tags: z.array(z.string().max(40)).max(10) }),
   address: { kind: 'path', base: '/blog', pattern: 'date-slug' },
   listing: { listable: true, order: 'published-desc', filterable: ['tags'] },
   lifecycle: { approval: false, moderation: false, scheduling: true },
 })
 ```
+
+Title and slug are always plain. Draw a formatted field's input with `content-editor` where it helps; a plain `<textarea>` works too, because the publisher checks every save.
 
 Then give **Authorisation** the permissions the types create:
 
