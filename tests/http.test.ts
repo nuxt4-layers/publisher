@@ -5,13 +5,13 @@ import type { EventHandler, H3Event } from 'h3'
 import { createApp, createRouter, defineEventHandler, getRequestHeader, toWebHandler } from 'h3'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { originRejected, publisherHttpError } from '../server/internal/http'
-import { clearPublisherComposition, providePublisherSubjectResolver } from '../server/utils/publisher-composition'
+import { clearPublisherComposition, providePublisherSiteResolver, providePublisherSubjectResolver } from '../server/utils/publisher-composition'
 import { createPublisherDocument, receivePublisherSubmission, transitionPublisherDocument } from '../server/utils/publisher-server'
 import { hasDatabase, requireDatabaseInCi } from './support/database'
 import { Harness } from './support/publisher'
 import { toPosix } from './support/paths'
 import { appraisal, bulletin } from './support/types'
-import { id, person, World } from './support/world'
+import { id, person, World, SITE } from './support/world'
 
 requireDatabaseInCi()
 
@@ -76,12 +76,12 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
   }
 
   async function draft(slug: string) {
-    return createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin(slug, `Title ${slug}`) })
+    return createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin(slug, `Title ${slug}`) })
   }
 
   async function published(slug: string) {
     const document = await draft(slug)
-    return transitionPublisherDocument({ subject: person(alice, world.time), correlationId: id(), documentId: document.id, request: { action: 'publish', expectedVersion: 1 } })
+    return transitionPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), documentId: document.id, request: { action: 'publish', expectedVersion: 1 } })
   }
 
   beforeAll(async () => {
@@ -108,6 +108,13 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
     resolverFails = false
     weak = new Set()
     for (const type of ['landing', 'appraisal', 'bulletin']) world.grantAll(alice, type)
+    // Sites by host name, as Configuration's tenant lookup would answer them.
+    providePublisherSiteResolver({
+      async resolve(event) {
+        const host = getRequestHeader(event as H3Event, 'host')
+        return host === 'site.test' || host === 'news.test' ? SITE : host === 'other.test' ? 'bravo' : null
+      },
+    })
     providePublisherSubjectResolver({
       async resolve(event) {
         if (resolverFails) throw new Error('authentication is down')
@@ -177,8 +184,8 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
     expect((await call('GET', `/api/publisher/admin/documents/${document.id}/backlinks`, { as: alice })).data).toEqual([])
     expect((await call('GET', `/api/publisher/admin/documents/${document.id}/preview`, { as: alice })).data).toMatchObject({ preview: true })
     // A publish permission at `high` needs aal2.
-    const page = await createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'landing', content: { locale: 'en-GB', title: 'L', slug: 'l', fields: { intro: 'x', section: 'support', blocks: [] } } })
-    await transitionPublisherDocument({ subject: person(alice, world.time), correlationId: id(), documentId: page.id, request: { action: 'submit', expectedVersion: 1 } })
+    const page = await createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'landing', content: { locale: 'en-GB', title: 'L', slug: 'l', fields: { intro: 'x', section: 'support', blocks: [] } } })
+    await transitionPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), documentId: page.id, request: { action: 'submit', expectedVersion: 1 } })
     world.approve(world.approvalFor(page.id)!, id())
     weak.add(alice)
     expect((await call('POST', `/api/publisher/admin/documents/${page.id}/actions`, { as: alice, body: { action: 'publish', expectedVersion: 1 } })).data).toMatchObject({ code: 'insufficient-assurance' })
@@ -195,7 +202,7 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
     const types = await call('GET', '/api/publisher/admin/types', { as: alice })
     expect(types.data.map((type: { type: string }) => type.type).sort()).toEqual(['appraisal', 'bulletin', 'landing'])
     expect((await call('GET', '/api/publisher/admin/types', { as: carol })).data).toEqual([])
-    await receivePublisherSubmission({ correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
+    await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
     expect((await call('GET', '/api/publisher/admin/moderation', { as: alice })).data.total).toBe(1)
     const listed = await call('GET', '/api/publisher/admin/documents?type=bulletin&search=admin', { as: alice })
     expect(listed.data.documents.map((item: { id: string }) => item.id)).toEqual([document.id])
@@ -206,6 +213,19 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
     expect((await call('POST', '/api/publisher/admin/documents', { as: alice, body, origin: null })).status).toBe(403)
     expect((await call('POST', '/api/publisher/admin/documents', { as: alice, body, origin: 'http://evil.test' })).status).toBe(403)
     expect((await call('POST', '/api/publisher/admin/documents', { as: alice, body })).status).toBe(201)
+  })
+
+  it('serves and administers each site only on its own hosts, and nothing on a host with no site', async () => {
+    const live = await published('sited')
+    const path = `/api/publisher/resolve?path=${encodeURIComponent(live.path!)}`
+    expect((await call('GET', path)).data).toMatchObject({ kind: 'document' })
+    expect((await call('GET', `http://other.test${path}`)).data).toEqual({ kind: 'none' })
+    expect((await call('GET', `http://nowhere.test${path}`)).status).toBe(404)
+    expect((await call('GET', 'http://nowhere.test/api/publisher/feeds/bulletin/rss')).status).toBe(404)
+    expect((await call('GET', `http://other.test/api/publisher/admin/documents/${live.id}`, { as: alice })).status).toBe(403)
+    expect((await call('GET', `http://nowhere.test/api/publisher/admin/documents/${live.id}`, { as: alice })).status).toBe(403)
+    const made = await call('POST', 'http://other.test/api/publisher/admin/documents', { as: alice, body: { type: 'bulletin', content: bulletin('elsewhere') } })
+    expect(made.data).toMatchObject({ siteId: 'bravo' })
   })
 
   it('answers bad bodies with a problem code only', async () => {

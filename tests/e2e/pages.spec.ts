@@ -25,6 +25,11 @@ async function signInAs(context: BrowserContext, identityId: string | null) {
   if (identityId) await context.addCookies([{ name: 'publisher_playground_subject', value: identityId, url: ORIGIN }])
 }
 
+/** The playground composes its stand-in for content-editor unless this cookie says not to. */
+async function withoutEditor(context: BrowserContext) {
+  await context.addCookies([{ name: 'publisher_playground_editor', value: 'none', url: ORIGIN }])
+}
+
 /** One `<main>`, then axe in light mode, in dark mode (Theme Manager's `dark` class), and back. */
 async function expectAccessible(page: Page) {
   await expect(page.locator('main')).toHaveCount(1)
@@ -159,6 +164,25 @@ test.describe('administration pages', () => {
     await page.goto(`/publisher/documents/${scenario.news}`)
     await page.getByRole('button', { name: 'Restore version 1' }).click()
     await expect(page.getByLabel('Title')).toHaveValue('First news')
+  })
+
+  test('without an editor, shows a document and its lifecycle but offers no way to edit it', async ({ page, context, request }) => {
+    const scenario = await seed(request)
+    await signInAs(context, scenario.alice)
+    await withoutEditor(context)
+    await page.goto(`/publisher/documents/${scenario.draft}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Unfinished' })).toBeVisible()
+    // Only the schedule's times remain to fill in: they are the lifecycle's, not content.
+    await expect(page.getByRole('textbox')).toHaveCount(2)
+    await expect(page.getByLabel('Title')).toHaveCount(0)
+    await expect(page.locator('textarea')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'History' })).toBeVisible()
+    await expectAccessible(page)
+    await page.goto('/publisher?type=bulletin')
+    await expect(page.getByRole('link', { name: 'Unfinished' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^New / })).toHaveCount(0)
   })
 
   test('refuses to unpublish a linked document until the links are acknowledged', async ({ page, context, request }) => {

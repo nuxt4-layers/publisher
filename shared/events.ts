@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { correlationIdSchema, identifierSchema, instantSchema } from './identifiers'
 import { typeKeySchema } from './types'
+import { siteIdSchema } from './values'
 
 /**
  * Outbox events (docs/contracts.md §12). Identifiers, codes, counts and
@@ -16,7 +17,7 @@ const envelope = {
   actorId: identifierSchema.nullable(),
 }
 
-const document = { documentId: identifierSchema, type: typeKeySchema }
+const document = { siteId: siteIdSchema, documentId: identifierSchema, type: typeKeySchema }
 const versioned = { ...document, version: z.number().int().min(1) }
 const count = z.number().int().min(0)
 
@@ -33,7 +34,7 @@ export const publisherEventSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...envelope, type: z.literal('publisher.submission-received'), data: z.strictObject(document) }),
   z.strictObject({ ...envelope, type: z.literal('publisher.submission-moderated'), data: z.strictObject({ ...document, outcome: z.enum(['accepted', 'rejected']) }) }),
   z.strictObject({ ...envelope, type: z.literal('publisher.person-erased'), data: z.strictObject({ identityId: identifierSchema, documents: count, versions: count }) }),
-  z.strictObject({ ...envelope, type: z.literal('publisher.content-imported'), data: z.strictObject({ documents: count, versions: count }) }),
+  z.strictObject({ ...envelope, type: z.literal('publisher.content-imported'), data: z.strictObject({ siteId: siteIdSchema, documents: count, versions: count }) }),
   z.strictObject({ ...envelope, type: z.literal('publisher.retention-applied'), data: z.strictObject({ versions: count }) }),
 ])
 

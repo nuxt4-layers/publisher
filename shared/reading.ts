@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { publisherDocumentSchema } from './documents'
 import { identifierSchema, instantSchema } from './identifiers'
 import { PUBLISHER_ORDERS, typeKeySchema } from './types'
-import { MARKDOWN_MAX_LENGTH, sitePathSchema } from './values'
+import { MARKDOWN_MAX_LENGTH, siteIdSchema, sitePathSchema } from './values'
 
 /** Reading published documents (docs/contracts.md §7, §8). */
 
@@ -45,6 +45,7 @@ export type PublisherResolution = z.infer<typeof publisherResolutionSchema>
 
 /** A listing query (§8.1). Filters name only the type's `filterable` fields. */
 export const publisherListingQuerySchema = z.strictObject({
+  siteId: siteIdSchema,
   type: typeKeySchema,
   locale: z.string().max(35).optional(),
   filters: z.record(z.string().max(64), z.string().max(200)).default({}),

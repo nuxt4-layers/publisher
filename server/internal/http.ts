@@ -3,8 +3,8 @@ import type { H3Event } from 'h3'
 import { createError, defineEventHandler, getQuery, getRequestHeader, getRequestHost, getRequestURL, getRouterParam, isError, readBody } from 'h3'
 import type { z } from 'zod'
 import type { PublisherErrorCode, PublisherSubject } from '../../shared/contracts'
-import { PUBLISHER_ERROR_STATUS, PublisherCompositionError, PublisherFailure, subjectSchema, UUID_PATTERN, UUID_V7_PATTERN } from '../../shared/contracts'
-import { usePublisherSubjectResolver } from '../utils/publisher-composition'
+import { PUBLISHER_ERROR_STATUS, PublisherCompositionError, PublisherFailure, siteIdSchema, subjectSchema, UUID_PATTERN, UUID_V7_PATTERN } from '../../shared/contracts'
+import { usePublisherSiteResolver, usePublisherSubjectResolver } from '../utils/publisher-composition'
 
 /**
  * PRIVATE. The HTTP boundary of `/api/publisher/*` (docs/contracts.md §14).
@@ -79,6 +79,36 @@ export async function requireSubject(event: H3Event): Promise<PublisherSubject> 
   const subject = await optionalSubject(event)
   if (!subject) throw new PublisherFailure('unauthenticated')
   return subject
+}
+
+/** The request's site, from the host's resolver, or `null`. `unavailable` if the resolver fails or answers something malformed. */
+export async function siteOfRequest(event: H3Event): Promise<string | null> {
+  let site: unknown
+  try {
+    site = await usePublisherSiteResolver().resolve(event)
+  }
+  catch (error) {
+    if (error instanceof PublisherCompositionError) throw error
+    throw new PublisherFailure('unavailable', 'site-resolver-failed')
+  }
+  if (site == null) return null
+  const parsed = siteIdSchema.safeParse(site)
+  if (!parsed.success) throw new PublisherFailure('unavailable', 'site-malformed')
+  return parsed.data
+}
+
+/** For readers: a request for no site finds nothing (`not-found`). */
+export async function readerSite(event: H3Event): Promise<string> {
+  const site = await siteOfRequest(event)
+  if (site === null) throw new PublisherFailure('not-found')
+  return site
+}
+
+/** For administration: a request for no site reaches nothing (`forbidden`). */
+export async function adminSite(event: H3Event): Promise<string> {
+  const site = await siteOfRequest(event)
+  if (site === null) throw new PublisherFailure('forbidden')
+  return site
 }
 
 export function identifierParam(event: H3Event, name: string): string {

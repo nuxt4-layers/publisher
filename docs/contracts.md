@@ -17,7 +17,7 @@ The publisher answers one question: **which version of which document is publish
 | Images and files | The host's asset store | `asset:` references, resolved through the asset port (§6.2) |
 | People's names | The host's person-name component (Profile) | Opaque identity identifiers only (§4); names through the person-name slot (§15) |
 | Who may do what | The IAM suite | The access-decision and approval ports (§11), on the permissions of §10 |
-| The editing component | `nuxt4-layers/content-editor` | The editor slot (§15); a plain Markdown text area without one |
+| Editing content: forms, Markdown editing, authoring | `nuxt4-layers/content-editor` | The editor slot (§15.2). The publisher builds no editing form; without an editor, its screens show documents and their lifecycle read-only |
 
 ## 2. What the publisher holds
 
@@ -55,13 +55,23 @@ A document of an addressed type carries a `slug` (up to 8 segments of `[a-z0-9]`
 - A document of a type the host does not register is refused (`validation-failed`, `unknown-type`). If the database holds documents of a type the host no longer registers, `checkPublisherComposition()` fails at start-up and every server function fails closed (`unavailable`) rather than serve them as something else.
 - Raising a type's risk, adding a field, or making a field optional applies to new versions; stored versions keep the content they were saved with and are checked again only when they are published or restored.
 
+### 3.4 Sites
+
+Every document belongs to one **site**: the host's opaque identifier of where documents are published (`siteIdSchema`: lower-case ASCII letters, digits and `-`, up to 64 characters), such as Identity's tenant identifier for the tenant Configuration finds by host name, or one fixed name for a host with one site. Types are registered once for every site.
+
+- Every server function but migration, the start-up check, maintenance, the relay and a person's export and erasure names its site; the endpoints take it only from the host's site resolver (§11). A request for no site finds nothing (`not-found`) and administers nothing (`forbidden`).
+- A document is addressed, listed, fed, mapped, linked, redirected, moderated and administered on its own site only. On any other site it is as missing as one that never existed, whatever the viewer's permissions there.
+- Addresses are unique per site: two sites may publish at the same path. `doc:` links resolve only to documents of the same site; anything else renders as text.
+- The access-decision, approval, asset and title-template ports are told the site, so a host maps each site to its own group, approvals, asset store and title.
+- A person's export and erasure cover every site, and say which site each document was on.
+
 ## 4. The envelope
 
 The same for every type (`publisherDocumentSchema`):
 
 | Group | Fields |
 |---|---|
-| Identity and content | `id` (UUIDv7), `type`, `locale` (BCP 47), `title` (safe text, 1 to 200), `summary` (safe text up to 500, or `null`), `fields` (the type's own, parsed by its schema), `slug`, `addressDate`, `path` |
+| Identity and content | `id` (UUIDv7), `siteId` (§3.4), `type`, `locale` (BCP 47), `title` (safe text, 1 to 200), `summary` (safe text up to 500, or `null`), `fields` (the type's own, parsed by its schema), `slug`, `addressDate`, `path` |
 | Lifecycle | `status` (`draft`, `in-review`, `scheduled`, `published`, `archived`), `publishAt`, `unpublishAt`, `version` (of these contents), `latestVersion`, `publishedVersion`, `reviewVersion`, `moderation` (`pending`, `accepted`, `rejected` or `null`), `createdAt`, `updatedAt`, `publishedAt` |
 | People | `authors`: up to 20 opaque identity identifiers. Names are the host's |
 
@@ -160,7 +170,7 @@ Publishing a version whose path differs from the published one's records a redir
 
 ### 8.3 Sitemap entries
 
-`listPublisherSitemapEntries()` answers `{ path, lastModified, type }` for every published document with an address. The host combines them with its own into `sitemap.xml`.
+`listPublisherSitemapEntries({ siteId })` answers `{ path, lastModified, type }` for every published document with an address on the site. The host combines them with its own into `sitemap.xml`.
 
 ### 8.4 Who reads what
 
@@ -196,6 +206,7 @@ A type's `lifecycle.risks` may raise any of them; never lower (refused at start-
 | Document types (`providePublisherDocumentTypes`) | Yes | Host | The registered types (§3) |
 | `PublisherDatabase` | Yes | Host | PostgreSQL pool (runtime role), schema (default `publisher`), and optionally the migration pool and runtime role, under ADR-0002 and ADR-0006 |
 | `PublisherSubjectResolver` | For the endpoints | Authentication, through the host | The signed-in subject, its `kind` and assurance, or `null` |
+| `PublisherSiteResolver` | For the endpoints | Host, e.g. from Configuration's tenant by host name | The request's site (§3.4), or `null`; a host with one site answers a constant |
 | `PublisherAccessDecision` | Yes | Authorisation, through the host | Whether an identity holds a permission (§10) now, for a type and optionally a document |
 | `PublisherApproval` | For types with `approval` | iam-integration's approvals process, through the host | Asking for and reading consent to publish a version (§5.2) |
 | `PublisherClock` | No: the system clock without it | Host (the suite's one clock) | Schedules, retention and assurance freshness |
@@ -203,14 +214,14 @@ A type's `lifecycle.risks` may raise any of them; never lower (refused at start-
 | `PublisherAssetResolver` | No: images are refused without it | The host's asset store | Each `asset:` id's address, or `null` |
 | `PublisherTitleTemplate` | No: a document's title alone | Host, e.g. from Configuration's `seo.title-template` | Page and feed titles |
 | Renderer per type (`providePublisherRenderer`) | No: the generic renderer | Host, app side | The component that draws a document of that type |
-| Editor (`providePublisherEditor`) | No: a plain Markdown text area | `content-editor`, through the host, app side | The editing component for Markdown fields |
+| Editor (`providePublisherEditor`) | No: without it, documents are not edited on the layer's screens | `content-editor`, through the host, app side | The whole editing surface for a version's content (§15.2) |
 | Person name (`providePublisherPersonName`) | No: authors are not named | Profile's component, through the host, app side | An author's name, by identity identifier |
 
 Required ports fail closed: a missing one is `PublisherCompositionError`, and a failing one `unavailable`, recording nothing. There is no in-memory or file store and no default type. `checkPublisherComposition()` checks every required port and the stored types at start-up.
 
 ## 12. Events
 
-Written to the publisher's transactional outbox in the same transaction as the change, and relayed by the host (`relayPublisherOutbox`) to the event sink, at least once, in order. Every event has an `eventId` (UUIDv7), `type`, `occurredAt`, `correlationId` and `actorId` (`null` for maintenance and imports).
+Written to the publisher's transactional outbox in the same transaction as the change, and relayed by the host (`relayPublisherOutbox`) to the event sink, at least once, in order. Every event has an `eventId` (UUIDv7), `type`, `occurredAt`, `correlationId` and `actorId` (`null` for maintenance and imports). Every event about a document, and `publisher.content-imported`, names its `siteId`.
 
 | Event | Data |
 |---|---|
@@ -247,7 +258,7 @@ Auto-imported in the host's server code. The subject is always the signed-in pri
 | `listPublishedDocuments`, `getPublisherFeed`, `listPublisherSitemapEntries` | §8 |
 | `runPublisherMaintenance()` | §5.4, §9. Never an endpoint |
 | `relayPublisherOutbox({ limit? })` | §12 |
-| `exportPublisherContent({ types? })`, `importPublisherContent({ bundle, correlationId })` | §16. Server-only |
+| `exportPublisherContent({ siteId, types? })`, `importPublisherContent({ siteId, bundle, correlationId })` | §16. Server-only |
 | `exportPublisherPersonData({ identityId })`, `erasePublisherPerson({ identityId, correlationId })` | §9. Server-only |
 
 ## 14. HTTP API
@@ -292,13 +303,15 @@ Components, composables and pages live in `app/` and reach the server only throu
 
 ### 15.2 Administration
 
-Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; a generic edit form built from the type's JSON Schema (as Configuration's `ConfigurationValueField`), its Markdown fields in the host's editor or a plain text area; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
+Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; the editor slot (below) for creating and editing; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port.
+
+The publisher builds **no editing form**. Editing a version's content (title, summary, slug, address date, language and the type's fields, Markdown included) is the editor slot's: a component the host registers with `providePublisherEditor`, normally `content-editor`'s, given `type` (`PublisherEditorType`: the type's key, label, address rule, Markdown field paths and fields' JSON Schema) and `id`, and editing the content (`PublisherContentInput`) as its `v-model`. The screens save what it produces; the server checks every save. Without an editor, documents are shown with their status, actions, history and links, and are not created or edited on the screens; content still arrives through `importPublisherContent` and the host's own server code. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
 
 Deliberate pairings, which a host's theme must keep legible (`app/publisher-pairings.ts`): `pen-muted-default` on `fill-base-default` (hints, notes and definition terms), `edge-error-default` on `fill-input-default` (an invalid field's border), `edge-base-active` on `fill-base-default` (the focus indicator).
 
 ## 16. Export and import
 
-`exportPublisherContent({ types? })` answers `{ format: 'nuxt4-layers.publisher', version: 1, exportedAt, types, documents }`: each document's envelope, every version's content and the redirects to it (`publisherBundleSchema`). `importPublisherContent` takes such a bundle into a database where none of its documents exists (`conflict` otherwise), checking every version against its registered type as a save would (`unknown-type`, field and Markdown problems), all or nothing, and writes `publisher.content-imported`. Importing an export into an empty database gives identical content. An import is also how a host seeds content; it bypasses no check on content, and needs no subject because it is server-only.
+`exportPublisherContent({ siteId, types? })` answers a site's `{ format: 'nuxt4-layers.publisher', version: 1, exportedAt, types, documents }`: each document's envelope, every version's content and the redirects to it (`publisherBundleSchema`). `importPublisherContent` takes such a bundle into a site of a database where none of its documents exists (`conflict` otherwise), checking every version against its registered type as a save would (`unknown-type`, field and Markdown problems), all or nothing, and writes `publisher.content-imported`. Importing an export into an empty database gives identical content. A bundle names no site, so a site's content moves to another site or environment unchanged. An import is also how a host seeds content; it bypasses no check on content, and needs no subject because it is server-only.
 
 ## 17. Versioning
 
@@ -315,6 +328,6 @@ Contract version 1 (`PUBLISHER_CONTRACT_VERSION`), frozen for 1.x once 1.0.0 is 
 7. **Redirects follow the document.** No chains; a document wins over a redirect; a redirect dies with its document's publication.
 8. **Backlinks by acknowledgement.** Unpublishing a linked document is allowed, but only once the editor has seen how many documents link to it.
 9. **The access port is type-wide.** The publisher asks about a permission, a type and optionally a document; which group or tenant decides is the host's mapping to Authorisation.
-10. **One site per schema.** Version 1 has no tenant or site scope; a host serving several sites composes the layer with one schema each. A site scope later would narrow every query, so it would be contract version 2.
+10. **Sites from the start.** Every document belongs to a site (§3.4), so a host serving several tenants composes the layer once, and a host with one site answers a constant. Adding a site scope after 1.0.0 would have narrowed every query and port, a contract version 2.
 11. **Markdown to a safe tree.** The parser answers the dialect's own nodes, rendered to VNodes; there is no sanitiser to get wrong because markup never reaches the DOM.
 12. **No document type in the layer.** Not even for its own tests or playground: both register types defined in `tests/support/types.ts`.

@@ -53,6 +53,14 @@ export const sitePathSchema = z.string().max(512, 'too-long').regex(/^\/(?!\/)[A
 /** A BCP 47 language tag, e.g. `en-GB`, `cy-GB`. */
 export const localeSchema = z.string().max(35).regex(/^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/, 'not-a-locale')
 
+/**
+ * A site: the host's opaque identifier of where documents are published,
+ * such as Identity's tenant identifier, or one fixed name for a host with
+ * one site. Lower-case ASCII letters, digits and `-`, 1 to 64 characters.
+ */
+export const SITE_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+export const siteIdSchema = z.string().regex(SITE_ID_PATTERN, 'not-a-site')
+
 /** A code chosen from a list: `rating-scale`, `consent-given`. */
 export const codeSchema = z.string().max(64).regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/, 'not-a-code')
 

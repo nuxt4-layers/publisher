@@ -41,6 +41,8 @@ export {
   MARKDOWN_MAX_LENGTH,
   markdownSchema,
   safeTextSchema,
+  SITE_ID_PATTERN,
+  siteIdSchema,
   sitePathSchema,
   SLUG_PATTERN,
   slugSchema,
@@ -48,6 +50,7 @@ export {
 
 export type {
   PublisherAddressRule,
+  PublisherEditorType,
   PublisherOrder,
   PublisherPermissionAction,
   PublisherRegistry,
@@ -161,6 +164,7 @@ export type {
   PublisherClock,
   PublisherDatabase,
   PublisherEventSink,
+  PublisherSiteResolver,
   PublisherSubjectResolver,
   PublisherTitleTemplate,
 } from './ports'

@@ -77,6 +77,24 @@ create table {{schema}}."outbox" (
 create index "outbox_unpublished_idx" on {{schema}}."outbox" ("sequence") where "published_at" is null;
 `,
   },
+  {
+    // Every document belongs to one site, and addresses are unique per site
+    // (docs/contracts.md §3.4). Added before any release; a database that
+    // already holds documents refuses it until an operator assigns them sites.
+    id: '0002_sites',
+    sql: `
+alter table {{schema}}."document" add column "site_id" text not null;
+drop index {{schema}}."document_path_idx";
+create unique index "document_path_idx" on {{schema}}."document" ("site_id", "path") where "path" is not null;
+drop index {{schema}}."document_latest_path_idx";
+create index "document_latest_path_idx" on {{schema}}."document" ("site_id", "latest_path");
+drop index {{schema}}."document_type_idx";
+create index "document_type_idx" on {{schema}}."document" ("site_id", "type", "status");
+alter table {{schema}}."redirect" add column "site_id" text not null;
+alter table {{schema}}."redirect" drop constraint "redirect_pkey";
+alter table {{schema}}."redirect" add primary key ("site_id", "path");
+`,
+  },
 ]
 
 const NAME_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/

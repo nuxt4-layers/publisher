@@ -48,14 +48,14 @@ const VERSION_1_EXPORTS = [
   'PUBLISHER_ERROR_CODES', 'PUBLISHER_ERROR_STATUS', 'PUBLISHER_FEED_FORMATS', 'PUBLISHER_LINK_SCHEMES', 'PUBLISHER_MARKDOWN_EXTENSIONS', 'PUBLISHER_MODERATION_STATES',
   'PUBLISHER_ORDERS', 'PUBLISHER_PERMISSION_ACTIONS', 'PUBLISHER_PERSONAL_DATA_RISK_FLOOR', 'PUBLISHER_RETENTION', 'PUBLISHER_RISKS', 'PUBLISHER_RISK_FLOOR',
   'PUBLISHER_SCHEDULED_TRANSITIONS', 'PUBLISHER_STATUSES', 'PUBLISHER_TRANSITIONS', 'PublisherCompositionError', 'PublisherFailure', 'REASON_CODE_PATTERN',
-  'SITE_LINK_PATTERN', 'SLUG_PATTERN', 'TYPE_KEY_PATTERN', 'UUID_PATTERN', 'UUID_V7_PATTERN', 'addressDateSchema',
+  'SITE_ID_PATTERN', 'SITE_LINK_PATTERN', 'SLUG_PATTERN', 'TYPE_KEY_PATTERN', 'UUID_PATTERN', 'UUID_V7_PATTERN', 'addressDateSchema',
   'addressRuleSchema', 'assetIdSchema', 'buildPublisherRegistry', 'canonicalJson', 'codeSchema', 'correlationIdSchema',
   'definePublisherDocumentType', 'digestSchema', 'httpsUrlSchema', 'identifierSchema', 'instantSchema', 'localeSchema',
   'markdownSchema', 'meetsStepUp', 'publisherActionRequestSchema', 'publisherBacklinkSchema', 'publisherBundleDocumentSchema', 'publisherBundleSchema',
   'publisherConsentSchema', 'publisherContentSchema', 'publisherDocumentSchema', 'publisherDraftSchema', 'publisherEventSchema', 'publisherHeadSchema',
   'publisherListingQuerySchema', 'publisherListingSchema', 'publisherPermission', 'publisherPermissions', 'publisherPersonExportSchema', 'publisherRenderedSchema',
   'publisherResolutionSchema', 'publisherResolvedLinksSchema', 'publisherSitemapEntrySchema', 'publisherTypeDeclarationSchema', 'publisherVersionSchema', 'reasonCodeSchema',
-  'riskRank', 'safeTextSchema', 'sitePathSchema', 'slugSchema', 'subjectSchema', 'typeKeySchema',
+  'riskRank', 'safeTextSchema', 'siteIdSchema', 'sitePathSchema', 'slugSchema', 'subjectSchema', 'typeKeySchema',
 ]
 
 describe('the public contract', () => {
@@ -95,11 +95,11 @@ describe('the public contract', () => {
 
   it('carries identifiers, codes and times only in events: never a title, field or address', () => {
     const envelope = { eventId: '01928c4e-0000-7000-8000-000000000001', occurredAt: '2026-10-21T12:00:00.000Z', correlationId: '01928c4e-0000-7000-8000-0000000000aa', actorId: null }
-    const data = { documentId: '01928c4e-0000-7000-8000-000000000002', type: 'anything', version: 3, unpublishAt: null }
+    const data = { siteId: 'alpha', documentId: '01928c4e-0000-7000-8000-000000000002', type: 'anything', version: 3, unpublishAt: null }
     expect(contracts.publisherEventSchema.safeParse({ ...envelope, type: 'publisher.document-published', data }).success).toBe(true)
     expect(contracts.publisherEventSchema.safeParse({ ...envelope, type: 'publisher.document-published', data: { ...data, title: 'Hello' } }).success).toBe(false)
     expect(contracts.publisherEventSchema.safeParse({ ...envelope, type: 'publisher.document-published', data: { ...data, path: '/hello' } }).success).toBe(false)
-    expect(contracts.publisherEventSchema.safeParse({ ...envelope, type: 'publisher.address-changed', data: { documentId: data.documentId, type: 'x', redirectRecorded: true, from: '/old' } }).success).toBe(false)
+    expect(contracts.publisherEventSchema.safeParse({ ...envelope, type: 'publisher.address-changed', data: { siteId: 'alpha', documentId: data.documentId, type: 'x', redirectRecorded: true, from: '/old' } }).success).toBe(false)
   })
 
   it('needs a second person for high and critical publishing, and step-up to the risk', () => {
@@ -140,6 +140,9 @@ describe('the public contract', () => {
   })
 
   it('takes slugs, addresses and text strictly', () => {
+    expect(contracts.siteIdSchema.safeParse('01928c4e-0000-7000-8000-000000000002').success).toBe(true)
+    expect(contracts.siteIdSchema.safeParse('main').success).toBe(true)
+    for (const site of ['', 'Main', '-main', 'main-', 'a b', 'x'.repeat(65)]) expect(contracts.siteIdSchema.safeParse(site).success, site).toBe(false)
     expect(contracts.slugSchema.safeParse('about/our-team').success).toBe(true)
     expect(contracts.slugSchema.safeParse('').success).toBe(true)
     for (const slug of ['About', '/about', 'about/', 'a//b', 'a b', '../x', 'a--b']) expect(contracts.slugSchema.safeParse(slug).success, slug).toBe(false)

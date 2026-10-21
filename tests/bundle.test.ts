@@ -16,7 +16,7 @@ import {
 import { createTestDatabase, hasDatabase, requireDatabaseInCi } from './support/database'
 import { Harness } from './support/publisher'
 import { appraisal, bulletin, landing, TEST_TYPES } from './support/types'
-import { id, person } from './support/world'
+import { id, person, SITE } from './support/world'
 
 requireDatabaseInCi()
 
@@ -32,24 +32,24 @@ describe.skipIf(!hasDatabase)('export and import (PostgreSQL)', () => {
     for (const type of ['landing', 'appraisal', 'bulletin']) world.grantAll(alice, type)
     const editor = person(alice, world.time)
     const act = (documentId: string, request: Parameters<typeof transitionPublisherDocument>[0]['request']) =>
-      transitionPublisherDocument({ subject: editor, correlationId: id(), documentId, request })
+      transitionPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), documentId, request })
 
     // Several versions, a rename with its redirect, a link, a draft, a moderated submission and a schedule.
-    const target = await createPublisherDocument({ subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('target') })
+    const target = await createPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('target') })
     await act(target.id, { action: 'publish', expectedVersion: 1 })
     await act(target.id, { action: 'save', expectedVersion: 1, content: bulletin('target-renamed', 'Renamed') })
     await act(target.id, { action: 'publish', expectedVersion: 2 })
-    const page = await createPublisherDocument({ subject: editor, correlationId: id(), type: 'landing', content: landing('welcome', 'Welcome', `See [the bulletin](doc:${target.id}).`) })
+    const page = await createPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), type: 'landing', content: landing('welcome', 'Welcome', `See [the bulletin](doc:${target.id}).`) })
     await act(page.id, { action: 'submit', expectedVersion: 1 })
     world.approve(world.approvalFor(page.id)!, id())
     await act(page.id, { action: 'publish', expectedVersion: 1 })
-    await createPublisherDocument({ subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('draft', 'Just a draft') })
-    const scheduled = await createPublisherDocument({ subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('soon') })
+    await createPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('draft', 'Just a draft') })
+    const scheduled = await createPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), type: 'bulletin', content: bulletin('soon') })
     await act(scheduled.id, { action: 'publish', expectedVersion: 1, publishAt: new Date(world.time.getTime() + 3_600_000).toISOString() })
-    const { documentId } = await receivePublisherSubmission({ correlationId: id(), submitterId: alice, type: 'appraisal', content: appraisal(alice) })
+    const { documentId } = await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: alice, type: 'appraisal', content: appraisal(alice) })
     await act(documentId, { action: 'moderate', expectedVersion: 1, outcome: 'accept' })
 
-    exported = await exportPublisherContent()
+    exported = await exportPublisherContent({ siteId: SITE })
     const database = await createTestDatabase()
     empty = { pool: new pg.Pool({ connectionString: database.url }), drop: database.drop }
   })
@@ -70,7 +70,7 @@ describe.skipIf(!hasDatabase)('export and import (PostgreSQL)', () => {
 
   it('exports by type', async () => {
     providePublisherDatabase({ dialect: 'postgres', pool: harness.pool })
-    const landings = await exportPublisherContent({ types: ['landing'] })
+    const landings = await exportPublisherContent({ siteId: SITE, types: ['landing'] })
     expect(landings.types).toEqual(['landing'])
     expect(landings.documents.map(document => document.type)).toEqual(['landing'])
   })
@@ -80,23 +80,23 @@ describe.skipIf(!hasDatabase)('export and import (PostgreSQL)', () => {
     providePublisherDatabase({ dialect: 'postgres', pool: empty.pool })
     providePublisherDocumentTypes(TEST_TYPES)
     await migratePublisherDatabase()
-    expect(await importPublisherContent({ bundle: exported, correlationId: id() })).toEqual({ documents: 5, versions: 6 })
-    const again = await exportPublisherContent()
+    expect(await importPublisherContent({ siteId: SITE, bundle: exported, correlationId: id() })).toEqual({ documents: 5, versions: 6 })
+    const again = await exportPublisherContent({ siteId: SITE })
     expect({ ...again, exportedAt: null }).toEqual({ ...exported, exportedAt: null })
     // And it serves the same: the document, the redirect and the resolved link.
-    const page = await getPublishedDocument({ path: '/welcome' })
+    const page = await getPublishedDocument({ siteId: SITE, path: '/welcome' })
     expect(Object.values(page!.links.documents)).toEqual(['/bulletins/2026/10/21/target-renamed'])
-    expect(await resolvePublisherPath({ path: '/bulletins/2026/10/21/target' })).toMatchObject({ kind: 'redirect' })
+    expect(await resolvePublisherPath({ siteId: SITE, path: '/bulletins/2026/10/21/target' })).toMatchObject({ kind: 'redirect' })
   })
 
   it('refuses a second import of the same documents, a malformed bundle and an unregistered type, importing nothing', async () => {
-    await expect(importPublisherContent({ bundle: exported, correlationId: id() })).rejects.toMatchObject({ code: 'conflict' })
-    await expect(importPublisherContent({ bundle: { ...exported, format: 'something-else' }, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed' })
+    await expect(importPublisherContent({ siteId: SITE, bundle: exported, correlationId: id() })).rejects.toMatchObject({ code: 'conflict' })
+    await expect(importPublisherContent({ siteId: SITE, bundle: { ...exported, format: 'something-else' }, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed' })
     const foreign = { ...exported, documents: [{ ...exported.documents[0]!, id: id(), type: 'recipe' }] }
-    await expect(importPublisherContent({ bundle: foreign, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed', reason: 'unknown-type' })
+    await expect(importPublisherContent({ siteId: SITE, bundle: foreign, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed', reason: 'unknown-type' })
     // Every version's content is checked against its type, as on save.
     const invalid = { ...exported, documents: [{ ...exported.documents[0]!, id: id(), versions: exported.documents[0]!.versions.map(version => ({ ...version, content: { ...version.content, fields: { nonsense: true } } })) }] }
-    await expect(importPublisherContent({ bundle: invalid, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed' })
-    expect((await exportPublisherContent()).documents).toHaveLength(5)
+    await expect(importPublisherContent({ siteId: SITE, bundle: invalid, correlationId: id() })).rejects.toMatchObject({ code: 'validation-failed' })
+    expect((await exportPublisherContent({ siteId: SITE })).documents).toHaveLength(5)
   })
 })

@@ -16,6 +16,7 @@ import {
   pathOf,
   refreshLinks,
   schemaName,
+  siteOf,
   subjectOf,
   toDocument,
 } from './store'
@@ -35,41 +36,43 @@ async function insertVersion(client: Client, declaration: PublisherTypeDeclarati
   )
 }
 
-async function latest(client: Client, documentId: string): Promise<PublisherDocument> {
-  const row = (await loadDocument(client, documentId))!
+async function latest(client: Client, siteId: string, documentId: string): Promise<PublisherDocument> {
+  const row = (await loadDocument(client, siteId, documentId))!
   return toDocument(row, (await loadVersion(client, documentId, row.latest_version))!)
 }
 
-async function insertDocument(client: Client, declaration: PublisherTypeDeclaration, content: PublisherContent, status: 'draft' | 'in-review', moderation: 'pending' | null, savedBy: string | null): Promise<string> {
+async function insertDocument(client: Client, siteId: string, declaration: PublisherTypeDeclaration, content: PublisherContent, status: 'draft' | 'in-review', moderation: 'pending' | null, savedBy: string | null): Promise<string> {
   const at = now()
   const documentId = uuidv7(at)
   await client.query(
-    `insert into ${schemaName()}."document" ("id", "type", "status", "latest_version", "moderation", "created_at", "updated_at", "latest_path") values ($1, $2, $3, 1, $4, $5, $5, $6)`,
-    [documentId, declaration.type, status, moderation, at, pathOf(declaration, content, null)],
+    `insert into ${schemaName()}."document" ("id", "site_id", "type", "status", "latest_version", "moderation", "created_at", "updated_at", "latest_path") values ($1, $7, $2, $3, 1, $4, $5, $5, $6)`,
+    [documentId, declaration.type, status, moderation, at, pathOf(declaration, content, null), siteId],
   )
   await insertVersion(client, declaration, documentId, 1, content, savedBy, null, at)
   await refreshLinks(client, { id: documentId, type: declaration.type, latest_version: 1, published_version: null })
   return documentId
 }
 
-export async function createDocument(input: { subject: PublisherSubject, correlationId: string, type: string, content: unknown }): Promise<PublisherDocument> {
+export async function createDocument(input: { siteId: string, subject: PublisherSubject, correlationId: string, type: string, content: unknown }): Promise<PublisherDocument> {
+  const siteId = siteOf(input.siteId)
   const declaration = declarationOf(input.type)
   return inTransaction(async (client) => {
-    await authorise(input.subject, input.type, 'edit', null)
+    await authorise(input.subject, siteId, input.type, 'edit', null)
     const content = parseContent(declaration, input.content)
-    const documentId = await insertDocument(client, declaration, content, 'draft', null, input.subject.identityId)
-    await emit(client, 'publisher.document-created', { documentId, type: declaration.type, version: 1 }, { correlationId: input.correlationId, actorId: input.subject.identityId })
-    return latest(client, documentId)
+    const documentId = await insertDocument(client, siteId, declaration, content, 'draft', null, input.subject.identityId)
+    await emit(client, 'publisher.document-created', { siteId, documentId, type: declaration.type, version: 1 }, { correlationId: input.correlationId, actorId: input.subject.identityId })
+    return latest(client, siteId, documentId)
   })
 }
 
-export async function receiveSubmission(input: { correlationId: string, submitterId: string | null, type: string, content: unknown }): Promise<{ documentId: string }> {
+export async function receiveSubmission(input: { siteId: string, correlationId: string, submitterId: string | null, type: string, content: unknown }): Promise<{ documentId: string }> {
+  const siteId = siteOf(input.siteId)
   const declaration = declarationOf(input.type)
   if (!declaration.lifecycle.moderation) throw new PublisherFailure('validation-failed', 'not-moderated')
   return inTransaction(async (client) => {
     const content = parseContent(declaration, input.content)
-    const documentId = await insertDocument(client, declaration, content, 'in-review', 'pending', input.submitterId)
-    await emit(client, 'publisher.submission-received', { documentId, type: declaration.type }, { correlationId: input.correlationId, actorId: input.submitterId })
+    const documentId = await insertDocument(client, siteId, declaration, content, 'in-review', 'pending', input.submitterId)
+    await emit(client, 'publisher.submission-received', { siteId, documentId, type: declaration.type }, { correlationId: input.correlationId, actorId: input.submitterId })
     return { documentId }
   })
 }
@@ -105,13 +108,13 @@ export async function publishNow(client: Client, row: DocumentRow, version: Vers
   const firstPublished = row.published_at ?? at
   const path = pathOf(declaration, version.content, firstPublished)
   if (path !== null) {
-    const { rows } = await client.query(`select 1 from ${schemaName()}."document" where "path" = $1 and "id" <> $2`, [path, row.id])
+    const { rows } = await client.query(`select 1 from ${schemaName()}."document" where "site_id" = $3 and "path" = $1 and "id" <> $2`, [path, row.id, row.site_id])
     if (rows.length > 0) throw new PublisherFailure('conflict', 'address-taken')
-    await client.query(`delete from ${schemaName()}."redirect" where "path" = $1`, [path])
+    await client.query(`delete from ${schemaName()}."redirect" where "site_id" = $2 and "path" = $1`, [path, row.site_id])
   }
   const moved = row.path !== null && row.path !== path
   if (moved) {
-    await client.query(`insert into ${schemaName()}."redirect" ("path", "document_id") values ($1, $2) on conflict ("path") do update set "document_id" = excluded."document_id"`, [row.path, row.id])
+    await client.query(`insert into ${schemaName()}."redirect" ("site_id", "path", "document_id") values ($3, $1, $2) on conflict ("site_id", "path") do update set "document_id" = excluded."document_id"`, [row.path, row.id, row.site_id])
   }
   try {
     await client.query(
@@ -124,8 +127,8 @@ export async function publishNow(client: Client, row: DocumentRow, version: Vers
     throw error
   }
   await refreshLinks(client, { ...row, published_version: version.version })
-  if (moved) await emit(client, 'publisher.address-changed', { documentId: row.id, type: row.type, redirectRecorded: true }, context)
-  await emit(client, 'publisher.document-published', { documentId: row.id, type: row.type, version: version.version, unpublishAt: unpublishAt?.toISOString() ?? null }, context)
+  if (moved) await emit(client, 'publisher.address-changed', { siteId: row.site_id, documentId: row.id, type: row.type, redirectRecorded: true }, context)
+  await emit(client, 'publisher.document-published', { siteId: row.site_id, documentId: row.id, type: row.type, version: version.version, unpublishAt: unpublishAt?.toISOString() ?? null }, context)
 }
 
 async function takeDown(client: Client, row: DocumentRow, status: 'draft' | 'archived', reasonCode: 'unpublished' | 'archived' | 'expired', context: Context, extra: { moderation?: 'rejected' } = {}): Promise<void> {
@@ -135,20 +138,21 @@ async function takeDown(client: Client, row: DocumentRow, status: 'draft' | 'arc
     [row.id, status, now(), extra.moderation ?? null],
   )
   await refreshLinks(client, { ...row, published_version: null })
-  if (wasPublic || reasonCode !== 'unpublished') await emit(client, 'publisher.document-unpublished', { documentId: row.id, type: row.type, reasonCode }, context)
+  if (wasPublic || reasonCode !== 'unpublished') await emit(client, 'publisher.document-unpublished', { siteId: row.site_id, documentId: row.id, type: row.type, reasonCode }, context)
 }
 
-export async function transitionDocument(input: { subject: PublisherSubject, correlationId: string, documentId: string, request: unknown }): Promise<PublisherDocument> {
+export async function transitionDocument(input: { siteId: string, subject: PublisherSubject, correlationId: string, documentId: string, request: unknown }): Promise<PublisherDocument> {
+  const siteId = siteOf(input.siteId)
   const parsed = publisherActionRequestSchema.safeParse(input.request)
   if (!parsed.success) throw new PublisherFailure('validation-failed')
   const request: PublisherActionRequest = parsed.data
   const context: Context = { correlationId: input.correlationId, actorId: input.subject.identityId }
   return inTransaction(async (client) => {
-    const row = await loadDocument(client, input.documentId, true)
+    const row = await loadDocument(client, siteId, input.documentId, true)
     if (!row) throw new PublisherFailure('forbidden')
     const declaration = declarationOf(row.type)
     const transition = PUBLISHER_TRANSITIONS[request.action]
-    await authorise(input.subject, row.type, transition.permission, row.id)
+    await authorise(input.subject, siteId, row.type, transition.permission, row.id)
     if (request.expectedVersion !== row.latest_version) throw new PublisherFailure('conflict', 'version-stale')
     const allowed = transition.from[row.status]
     if (!allowed) throw new PublisherFailure('conflict', 'invalid-transition')
@@ -177,7 +181,7 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
           [row.id, status, version, pathOf(declaration, content, row.published_at), at],
         )
         await refreshLinks(client, { ...row, latest_version: version })
-        await emit(client, 'publisher.document-saved', { documentId: row.id, type: row.type, version, restoredFrom }, context)
+        await emit(client, 'publisher.document-saved', { siteId: row.site_id, documentId: row.id, type: row.type, version, restoredFrom }, context)
         break
       }
       case 'submit': {
@@ -186,6 +190,7 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
         let approvalId: string
         try {
           ({ approvalId } = await approval.request({
+            siteId,
             documentId: row.id,
             type: row.type,
             version: newest.version,
@@ -204,7 +209,7 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
           `update ${schemaName()}."document" set "status" = $2, "review_version" = $3, "approval_id" = $4, "review_requester" = $5, "updated_at" = $6 where "id" = $1`,
           [row.id, allowed[0], newest.version, String(approvalId).slice(0, 200), input.subject.identityId, at],
         )
-        await emit(client, 'publisher.review-requested', { documentId: row.id, type: row.type, version: newest.version, approvalId: String(approvalId).slice(0, 200) }, context)
+        await emit(client, 'publisher.review-requested', { siteId: row.site_id, documentId: row.id, type: row.type, version: newest.version, approvalId: String(approvalId).slice(0, 200) }, context)
         break
       }
       case 'withdraw': {
@@ -212,8 +217,8 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
           `update ${schemaName()}."document" set "status" = 'draft', "review_version" = null, "approval_id" = null, "review_requester" = null, "publish_at" = null, "unpublish_at" = null, "updated_at" = $2 where "id" = $1`,
           [row.id, at],
         )
-        if (row.status === 'in-review') await emit(client, 'publisher.review-withdrawn', { documentId: row.id, type: row.type }, context)
-        else await emit(client, 'publisher.document-unpublished', { documentId: row.id, type: row.type, reasonCode: 'unpublished' }, context)
+        if (row.status === 'in-review') await emit(client, 'publisher.review-withdrawn', { siteId: row.site_id, documentId: row.id, type: row.type }, context)
+        else await emit(client, 'publisher.document-unpublished', { siteId: row.site_id, documentId: row.id, type: row.type, reasonCode: 'unpublished' }, context)
         break
       }
       case 'publish': {
@@ -232,7 +237,7 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
         if (!consentRecorded(declaration, newest.content)) throw new PublisherFailure('conflict', 'consent-missing')
         if (scheduled) {
           await client.query(`update ${schemaName()}."document" set "status" = 'scheduled', "publish_at" = $2, "unpublish_at" = $3, "updated_at" = $4 where "id" = $1`, [row.id, publishAt, unpublishAt, at])
-          await emit(client, 'publisher.document-scheduled', { documentId: row.id, type: row.type, version: newest.version, publishAt: publishAt.toISOString(), unpublishAt: unpublishAt?.toISOString() ?? null }, context)
+          await emit(client, 'publisher.document-scheduled', { siteId: row.site_id, documentId: row.id, type: row.type, version: newest.version, publishAt: publishAt.toISOString(), unpublishAt: unpublishAt?.toISOString() ?? null }, context)
         }
         else {
           await publishNow(client, row, newest, unpublishAt, context)
@@ -241,13 +246,13 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
       }
       case 'unpublish':
       case 'archive': {
-        if (request.acknowledgedLinks < await countBacklinks(client, row.id)) throw new PublisherFailure('conflict', 'still-linked')
+        if (request.acknowledgedLinks < await countBacklinks(client, siteId, row.id)) throw new PublisherFailure('conflict', 'still-linked')
         await takeDown(client, row, allowed[0] as 'draft' | 'archived', request.action === 'archive' ? 'archived' : 'unpublished', context)
         break
       }
       case 'reopen': {
         await client.query(`update ${schemaName()}."document" set "status" = 'draft', "updated_at" = $2 where "id" = $1`, [row.id, at])
-        await emit(client, 'publisher.document-reopened', { documentId: row.id, type: row.type }, context)
+        await emit(client, 'publisher.document-reopened', { siteId: row.site_id, documentId: row.id, type: row.type }, context)
         break
       }
       case 'moderate': {
@@ -255,7 +260,7 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
         if (request.outcome === 'accept') {
           if (!consentRecorded(declaration, newest.content)) throw new PublisherFailure('conflict', 'consent-missing')
           await client.query(`update ${schemaName()}."document" set "moderation" = 'accepted' where "id" = $1`, [row.id])
-          await emit(client, 'publisher.submission-moderated', { documentId: row.id, type: row.type, outcome: 'accepted' }, context)
+          await emit(client, 'publisher.submission-moderated', { siteId: row.site_id, documentId: row.id, type: row.type, outcome: 'accepted' }, context)
           await publishNow(client, { ...row, moderation: 'accepted' }, newest, null, context)
         }
         else {
@@ -263,12 +268,12 @@ export async function transitionDocument(input: { subject: PublisherSubject, cor
             `update ${schemaName()}."document" set "status" = 'archived', "moderation" = 'rejected', "updated_at" = $2 where "id" = $1`,
             [row.id, at],
           )
-          await emit(client, 'publisher.submission-moderated', { documentId: row.id, type: row.type, outcome: 'rejected' }, context)
+          await emit(client, 'publisher.submission-moderated', { siteId: row.site_id, documentId: row.id, type: row.type, outcome: 'rejected' }, context)
         }
         break
       }
     }
-    return latest(client, row.id)
+    return latest(client, siteId, row.id)
   })
 }
 

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { identifierSchema, instantSchema, reasonCodeSchema } from './identifiers'
 import { typeKeySchema } from './types'
-import { addressDateSchema, localeSchema, safeTextSchema, sitePathSchema, slugSchema } from './values'
+import { addressDateSchema, localeSchema, safeTextSchema, siteIdSchema, sitePathSchema, slugSchema } from './values'
 
 /**
  * The document envelope (docs/contracts.md §4): the same for every type.
@@ -50,6 +50,8 @@ export type PublisherConsent = z.infer<typeof publisherConsentSchema>
 /** A document as the layer answers it: one version's content in the envelope. */
 export const publisherDocumentSchema = z.strictObject({
   id: identifierSchema,
+  /** The site the document belongs to; it is never served on another (§3.4). */
+  siteId: siteIdSchema,
   type: typeKeySchema,
   ...publisherContentSchema.shape,
   summary: safeTextSchema({ min: 0, max: 500 }).nullable(),

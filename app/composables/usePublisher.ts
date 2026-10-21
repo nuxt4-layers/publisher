@@ -3,6 +3,7 @@ import type {
   PublisherBacklink,
   PublisherContentInput,
   PublisherDocument,
+  PublisherEditorType,
   PublisherErrorCode,
   PublisherListing,
   PublisherPermissionAction,
@@ -12,18 +13,12 @@ import type {
 } from '../../shared/contracts'
 import { PUBLISHER_ERROR_CODES } from '../../shared/contracts'
 
-/** A registered type as the administration pages see it. */
-export interface PublisherTypeView {
-  type: string
-  label: { one: string, many: string }
-  address: { kind: 'none' } | { kind: 'path', base: string, pattern: 'slug' | 'date-slug' }
+/** A registered type as the administration screens see it; the editor slot is given its `PublisherEditorType` part. */
+export interface PublisherTypeView extends PublisherEditorType {
   listing: { listable: boolean, order: string, filterable: string[] }
   lifecycle: { approval: boolean, moderation: boolean, scheduling: boolean }
   personalData: boolean
-  markdownFields: string[]
   risks: Record<PublisherPermissionAction, PublisherRisk>
-  /** The fields' JSON Schema, to build a form; the server checks every value again. */
-  schema: Record<string, unknown>
   may: Record<PublisherPermissionAction, boolean>
 }
 

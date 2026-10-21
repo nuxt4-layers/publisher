@@ -1,15 +1,11 @@
 <script setup lang="ts">
 /**
- * One field of a type's form, built from its JSON Schema: text, Markdown,
- * choices, numbers, switches, groups of fields and lists. Markdown fields
- * use the host's editor, or a plain text area. Anything else is edited as
- * JSON. It decides nothing: the server checks every value again.
+ * PLAYGROUND ONLY: one field of the stand-in editor, built from the type's
+ * JSON Schema. Not published; a host composes content-editor instead.
  */
-defineOptions({ name: 'PublisherField' })
+defineOptions({ name: 'PlaygroundField' })
 const props = defineProps<{ schema: Record<string, unknown>, id: string, label: string, path: string, markdownFields: readonly string[], required?: boolean }>()
 const model = defineModel<unknown>()
-const text = usePublisherText()
-const editor = computed(() => usePublisherComponents().editor())
 
 type Schema = Record<string, unknown> & { type?: string, enum?: string[], anyOf?: Schema[], properties?: Record<string, Schema>, required?: string[], items?: Schema, format?: string, default?: unknown }
 const schema = computed(() => props.schema as Schema)
@@ -69,13 +65,13 @@ function addItem() {
 function removeItem(index: number) {
   model.value = items.value.filter((_, at) => at !== index)
 }
-const hint = computed(() => kind.value === 'markdown' ? text('publisher.admin.markdown-hint') : kind.value === 'json' ? text('publisher.admin.json-hint') : null)
+const hint = computed(() => kind.value === 'markdown' ? 'Markdown. Link documents with [text](doc:…), images with ![description](asset:…).' : kind.value === 'json' ? 'Edited as JSON.' : null)
 </script>
 
 <template>
   <fieldset v-if="kind === 'group'" :class="publisherClasses.fieldset">
     <legend :class="publisherClasses.legend">{{ label }}</legend>
-    <PublisherField
+    <PlaygroundField
       v-for="(child, name) in schema.properties"
       :id="`${id}-${name}`"
       :key="name"
@@ -92,7 +88,7 @@ const hint = computed(() => kind.value === 'markdown' ? text('publisher.admin.ma
   <fieldset v-else-if="kind === 'list'" :class="publisherClasses.fieldset">
     <legend :class="publisherClasses.legend">{{ label }}</legend>
     <div v-for="(item, index) in items" :key="index" :class="publisherClasses.stack">
-      <PublisherField
+      <PlaygroundField
         :id="`${id}-${index}`"
         :schema="schema.items!"
         :label="`${label} ${index + 1}`"
@@ -102,21 +98,17 @@ const hint = computed(() => kind.value === 'markdown' ? text('publisher.admin.ma
         @update:model-value="value => setItem(index, value)"
       />
       <div :class="publisherClasses.row">
-        <button type="button" :class="publisherClasses.secondaryButton" @click="removeItem(index)">{{ text('publisher.admin.remove') }}</button>
+        <button type="button" :class="publisherClasses.secondaryButton" @click="removeItem(index)">Remove</button>
       </div>
     </div>
     <div :class="publisherClasses.row">
-      <button type="button" :class="publisherClasses.secondaryButton" @click="addItem">{{ text('publisher.admin.add') }}</button>
+      <button type="button" :class="publisherClasses.secondaryButton" @click="addItem">Add</button>
     </div>
   </fieldset>
 
   <div v-else-if="kind === 'switch'" :class="publisherClasses.row">
     <input :id="id" v-model="switchValue" type="checkbox" :class="publisherClasses.checkbox">
     <label :for="id" :class="publisherClasses.label">{{ label }}</label>
-  </div>
-
-  <div v-else-if="kind === 'markdown' && editor">
-    <component :is="editor" :id="id" v-model="textValue" :label="label" />
   </div>
 
   <div v-else>

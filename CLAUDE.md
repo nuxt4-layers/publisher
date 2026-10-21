@@ -15,6 +15,8 @@ Nuxt 4 foundation layer for publishing documents of types the host registers: dr
 
 ## Rules
 - **The layer never names a document type.** Every type is the host's registration (`providePublisherDocumentTypes`); adding one is never a change to the layer. No `page`, `post`, `review`, `menu` or `blog` (or any other type) in `app/`, `server/`, `shared/`, `markdown/`, `modules/` or messages, outside comments; `tests/contracts.test.ts` searches for them. Reference types live only in `examples/`, never registered; tests and the playground use the types in `tests/support/types.ts`.
+- Every document belongs to a site (docs/contracts.md §3.4): every scoped query, port call and event names it; endpoints take it only from the host's site resolver. Nothing crosses sites.
+- The layer builds no editing form: editing content is the editor slot's (`content-editor`); without one, the screens are read-only.
 - Publishing only. Never store site settings (Configuration's), files (the host's asset store), names (Profile's), permissions or approvals policy (the IAM suite's), or the site shell.
 - Required ports fail closed. No implicit in-memory or file store, no default type, no default key.
 - Contract (`shared/`) imports only zod; enforced by `tests/contracts.test.ts`. `server/internal` and `server/database` are private. Every row is parsed with the contract's schemas before it leaves the layer; SQL is parameterised.

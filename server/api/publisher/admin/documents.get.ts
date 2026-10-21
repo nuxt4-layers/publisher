@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PUBLISHER_STATUSES, typeKeySchema } from '../../../../shared/contracts'
-import { publisherHandler, readQuery, requireSubject } from '../../../internal/http'
+import { adminSite, publisherHandler, readQuery, requireSubject } from '../../../internal/http'
 import { listPublisherDocuments } from '../../../utils/publisher-server'
 
 const query = z.strictObject({
@@ -14,5 +14,5 @@ const query = z.strictObject({
 /** GET /api/publisher/admin/documents?type=… — a type's documents, newest change first. Needs `view-draft`. */
 export default publisherHandler(async (event) => {
   const subject = await requireSubject(event)
-  return listPublisherDocuments({ subject, ...readQuery(event, query) })
+  return listPublisherDocuments({ siteId: await adminSite(event), subject, ...readQuery(event, query) })
 })

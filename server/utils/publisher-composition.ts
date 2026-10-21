@@ -6,6 +6,7 @@ import type {
   PublisherDatabase,
   PublisherEventSink,
   PublisherRegistry,
+  PublisherSiteResolver,
   PublisherSubjectResolver,
   PublisherTitleTemplate,
   PublisherTypeDeclarationInput,
@@ -25,6 +26,7 @@ let registry: PublisherRegistry = buildPublisherRegistry([])
 let access: PublisherAccessDecision | null = null
 let approval: PublisherApproval | null = null
 let subjectResolver: PublisherSubjectResolver | null = null
+let siteResolver: PublisherSiteResolver | null = null
 let eventSink: PublisherEventSink | null = null
 let assets: PublisherAssetResolver | null = null
 let titleTemplate: PublisherTitleTemplate | null = null
@@ -71,6 +73,12 @@ export function providePublisherSubjectResolver(next: PublisherSubjectResolver):
   subjectResolver = next
 }
 
+/** Which site an HTTP request is for; a host with one site answers a constant. */
+export function providePublisherSiteResolver(next: PublisherSiteResolver): void {
+  needs(next, ['resolve'], 'providePublisherSiteResolver expects a resolve(event) function.')
+  siteResolver = next
+}
+
 /** Where `relayPublisherOutbox` sends events. */
 export function providePublisherEventSink(next: PublisherEventSink): void {
   needs(next, ['publish'], 'providePublisherEventSink expects a publish(events) function.')
@@ -106,6 +114,7 @@ export const usePublisherDatabase = () => required(database, 'PublisherDatabase'
 export const usePublisherAccessDecision = () => required(access, 'PublisherAccessDecision')
 export const usePublisherApproval = () => required(approval, 'PublisherApproval')
 export const usePublisherSubjectResolver = () => required(subjectResolver, 'PublisherSubjectResolver')
+export const usePublisherSiteResolver = () => required(siteResolver, 'PublisherSiteResolver')
 export const usePublisherEventSink = () => required(eventSink, 'PublisherEventSink')
 /** Optional: `null` without it, and images are refused. */
 export const usePublisherAssetResolver = (): PublisherAssetResolver | null => assets
@@ -120,6 +129,7 @@ export function clearPublisherComposition(): void {
   access = null
   approval = null
   subjectResolver = null
+  siteResolver = null
   eventSink = null
   assets = null
   titleTemplate = null

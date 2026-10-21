@@ -20,7 +20,7 @@ import {
 import { hasDatabase, requireDatabaseInCi } from './support/database'
 import { Harness } from './support/publisher'
 import { appraisal, bulletin, landing, TEST_TYPES } from './support/types'
-import { id, person, World } from './support/world'
+import { id, person, World, SITE } from './support/world'
 
 requireDatabaseInCi()
 
@@ -35,10 +35,10 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
   let reader: PublisherSubject
 
   const act = (subject: PublisherSubject, document: PublisherDocument | string, request: PublisherActionRequestInput) =>
-    transitionPublisherDocument({ subject, correlationId: id(), documentId: typeof document === 'string' ? document : document.id, request })
+    transitionPublisherDocument({ siteId: SITE, subject, correlationId: id(), documentId: typeof document === 'string' ? document : document.id, request })
 
   const create = (subject: PublisherSubject, type: string, content: unknown) =>
-    createPublisherDocument({ subject, correlationId: id(), type, content: content as never })
+    createPublisherDocument({ siteId: SITE, subject, correlationId: id(), type, content: content as never })
 
   /** Creates, reviews where the type needs it, and publishes. */
   async function published(type: 'landing' | 'bulletin', content: unknown): Promise<PublisherDocument> {
@@ -80,17 +80,17 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       expect(page).toMatchObject({ status: 'published', publishedVersion: 2, path: '/about' })
 
       // A review-like type: a person's rating, moderated, consent recorded.
-      const { documentId } = await receivePublisherSubmission({ correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
+      const { documentId } = await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
       let rating = await act(editor, documentId, { action: 'moderate', expectedVersion: 1, outcome: 'accept' })
       expect(rating).toMatchObject({ status: 'published', moderation: 'accepted', path: null })
       rating = await act(editor, rating, { action: 'save', expectedVersion: 1, content: appraisal(carol, { stars: 4 }) })
-      expect((await listPublisherHistory({ subject: editor, documentId })).map(version => version.version)).toEqual([2, 1])
+      expect((await listPublisherHistory({ siteId: SITE, subject: editor, documentId })).map(version => version.version)).toEqual([2, 1])
 
-      expect((await listPublishedDocuments({ type: 'landing' })).documents.map(document => document.id)).toEqual([page.id])
-      expect((await listPublishedDocuments({ type: 'appraisal' })).documents.map(document => document.id)).toEqual([documentId])
-      expect(await getPublisherFeed({ type: 'landing', format: 'atom', origin: 'https://example.test' })).toContain('https://example.test/about')
-      expect(await getPublisherFeed({ type: 'appraisal', format: 'rss', origin: 'https://example.test' })).toContain(`urn:uuid:${documentId}`)
-      const bundle = await exportPublisherContent()
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'landing' })).documents.map(document => document.id)).toEqual([page.id])
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'appraisal' })).documents.map(document => document.id)).toEqual([documentId])
+      expect(await getPublisherFeed({ siteId: SITE, type: 'landing', format: 'atom', origin: 'https://example.test' })).toContain('https://example.test/about')
+      expect(await getPublisherFeed({ siteId: SITE, type: 'appraisal', format: 'rss', origin: 'https://example.test' })).toContain(`urn:uuid:${documentId}`)
+      const bundle = await exportPublisherContent({ siteId: SITE })
       expect(bundle.documents.map(document => document.type).sort()).toEqual(['appraisal', 'landing'])
     })
 
@@ -107,10 +107,10 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       world.grantAll(alice, 'recipe')
       let recipe = await create(editor, 'recipe', { locale: 'en-GB', title: 'Scones', slug: 'scones', fields: { method: 'Mix, then **bake**.', serves: 6 } })
       recipe = await act(editor, recipe, { action: 'publish', expectedVersion: 1 })
-      expect((await getPublishedDocument({ path: '/recipes/scones' }))?.document.fields).toEqual({ method: 'Mix, then **bake**.', serves: 6 })
-      expect((await listPublishedDocuments({ type: 'recipe' })).total).toBe(1)
-      expect(await getPublisherFeed({ type: 'recipe', format: 'rss', origin: 'https://example.test' })).toContain('Scones')
-      expect((await exportPublisherContent({ types: ['recipe'] })).documents).toHaveLength(1)
+      expect((await getPublishedDocument({ siteId: SITE, path: '/recipes/scones' }))?.document.fields).toEqual({ method: 'Mix, then **bake**.', serves: 6 })
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'recipe' })).total).toBe(1)
+      expect(await getPublisherFeed({ siteId: SITE, type: 'recipe', format: 'rss', origin: 'https://example.test' })).toContain('Scones')
+      expect((await exportPublisherContent({ siteId: SITE, types: ['recipe'] })).documents).toHaveLength(1)
       // Its fields are checked against its own schema.
       await expect(create(editor, 'recipe', { locale: 'en-GB', title: 'Bad', slug: 'bad', fields: { method: 'x', serves: 0 } })).rejects.toMatchObject({ code: 'validation-failed' })
     })
@@ -121,14 +121,14 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       const draft = await create(editor, 'bulletin', bulletin('draft'))
       const missing = { path: '/bulletins/2026/10/21/nothing-here' }
       for (const viewer of [null, reader, approver]) {
-        expect(await getPublishedDocument({ path: '/bulletins/2026/10/21/draft', viewer })).toBeNull()
-        expect(await getPublishedDocument({ path: '/bulletins/2026/10/21/draft', viewer, preview: true })).toBeNull()
-        expect(await getPublishedDocument({ documentId: draft.id, viewer, preview: true })).toBeNull()
-        expect(await resolvePublisherPath({ path: '/bulletins/2026/10/21/draft', viewer, preview: true })).toEqual(await resolvePublisherPath({ ...missing, viewer, preview: true }))
+        expect(await getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/draft', viewer })).toBeNull()
+        expect(await getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/draft', viewer, preview: true })).toBeNull()
+        expect(await getPublishedDocument({ siteId: SITE, documentId: draft.id, viewer, preview: true })).toBeNull()
+        expect(await resolvePublisherPath({ siteId: SITE, path: '/bulletins/2026/10/21/draft', viewer, preview: true })).toEqual(await resolvePublisherPath({ siteId: SITE, ...missing, viewer, preview: true }))
       }
-      expect((await listPublishedDocuments({ type: 'bulletin' })).total).toBe(0)
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'bulletin' })).total).toBe(0)
       // With `view-draft`, a preview of the newest version.
-      const preview = await getPublishedDocument({ documentId: draft.id, viewer: editor, preview: true })
+      const preview = await getPublishedDocument({ siteId: SITE, documentId: draft.id, viewer: editor, preview: true })
       expect(preview).toMatchObject({ preview: true, document: { status: 'draft', version: 1 } })
     })
 
@@ -136,19 +136,19 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       let document = await published('bulletin', bulletin('news', 'First'))
       document = await act(editor, document, { action: 'save', expectedVersion: 1, content: bulletin('news', 'Second') })
       expect(document).toMatchObject({ status: 'published', latestVersion: 2, publishedVersion: 1 })
-      expect((await getPublishedDocument({ path: '/bulletins/2026/10/21/news' }))?.document.title).toBe('First')
-      expect((await getPublishedDocument({ path: '/bulletins/2026/10/21/news', viewer: editor, preview: true }))?.document.title).toBe('Second')
+      expect((await getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/news' }))?.document.title).toBe('First')
+      expect((await getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/news', viewer: editor, preview: true }))?.document.title).toBe('Second')
       await act(editor, document, { action: 'publish', expectedVersion: 2 })
-      expect((await getPublishedDocument({ path: '/bulletins/2026/10/21/news' }))?.document.title).toBe('Second')
+      expect((await getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/news' }))?.document.title).toBe('Second')
     })
 
     it('hides archived and unpublished documents again', async () => {
       const document = await published('bulletin', bulletin('gone'))
       const unpublished = await act(editor, document, { action: 'unpublish', expectedVersion: 1, acknowledgedLinks: 0 })
       expect(unpublished.status).toBe('draft')
-      expect(await getPublishedDocument({ documentId: document.id })).toBeNull()
+      expect(await getPublishedDocument({ siteId: SITE, documentId: document.id })).toBeNull()
       await act(editor, unpublished, { action: 'archive', expectedVersion: 1, acknowledgedLinks: 0 })
-      expect(await getPublishedDocument({ documentId: document.id, viewer: editor })).toBeNull()
+      expect(await getPublishedDocument({ siteId: SITE, documentId: document.id, viewer: editor })).toBeNull()
     })
   })
 
@@ -171,12 +171,12 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
         world.grant(mallory, `publisher.landing.${PUBLISHER_TRANSITIONS[request.action].permission}`)
         await expect(act(subject, document, request), action).rejects.toMatchObject({ code: 'forbidden' })
       }
-      await expect(getPublisherDocument({ subject: person(id(), world.time), documentId: document.id })).rejects.toMatchObject({ code: 'forbidden' })
+      await expect(getPublisherDocument({ siteId: SITE, subject: person(id(), world.time), documentId: document.id })).rejects.toMatchObject({ code: 'forbidden' })
       expect(PUBLISHER_ACTIONS.every(action => PUBLISHER_TRANSITIONS[action].permission)).toBe(true)
     })
 
     it('refuses moderation without `moderate`, even to whoever may publish', async () => {
-      const { documentId } = await receivePublisherSubmission({ correlationId: id(), submitterId: null, type: 'appraisal', content: appraisal(carol) })
+      const { documentId } = await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: null, type: 'appraisal', content: appraisal(carol) })
       world.revoke(alice, 'publisher.appraisal.moderate')
       await expect(act(editor, documentId, { action: 'moderate', expectedVersion: 1, outcome: 'accept' })).rejects.toMatchObject({ code: 'forbidden' })
     })
@@ -223,7 +223,7 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       await expect(act(editor, document, { action: 'publish', expectedVersion: 2 })).rejects.toMatchObject({ reason: 'approval-missing' })
       world.approve(world.approvalFor(document.id)!, bob)
       await act(editor, document, { action: 'publish', expectedVersion: 2 })
-      expect((await getPublishedDocument({ path: '/live' }))?.document.title).toBe('Next')
+      expect((await getPublishedDocument({ siteId: SITE, path: '/live' }))?.document.title).toBe('Next')
     })
 
     it('publishes a type without review at once', async () => {
@@ -236,29 +236,29 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
 
   describe('moderation', () => {
     it('keeps submissions hidden until a moderator accepts them, and hidden for good when rejected', async () => {
-      const accepted = await receivePublisherSubmission({ correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
-      const rejected = await receivePublisherSubmission({ correlationId: id(), submitterId: null, type: 'appraisal', content: appraisal(id(), { words: 'Spam' }) })
+      const accepted = await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
+      const rejected = await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: null, type: 'appraisal', content: appraisal(id(), { words: 'Spam' }) })
       for (const { documentId } of [accepted, rejected]) {
-        expect(await getPublishedDocument({ documentId })).toBeNull()
-        expect(await getPublisherDocument({ subject: editor, documentId })).toMatchObject({ status: 'in-review', moderation: 'pending' })
+        expect(await getPublishedDocument({ siteId: SITE, documentId })).toBeNull()
+        expect(await getPublisherDocument({ siteId: SITE, subject: editor, documentId })).toMatchObject({ status: 'in-review', moderation: 'pending' })
       }
-      expect((await listPublishedDocuments({ type: 'appraisal' })).total).toBe(0)
-      expect((await listPublisherModerationQueue({ subject: editor })).documents.map(document => document.id).sort()).toEqual([accepted.documentId, rejected.documentId].sort())
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'appraisal' })).total).toBe(0)
+      expect((await listPublisherModerationQueue({ siteId: SITE, subject: editor })).documents.map(document => document.id).sort()).toEqual([accepted.documentId, rejected.documentId].sort())
       // A moderated submission is not published by `publish`: it waits for a moderator.
       await expect(act(editor, accepted.documentId, { action: 'publish', expectedVersion: 1 })).rejects.toMatchObject({ code: 'conflict', reason: 'not-moderated' })
 
       await act(editor, accepted.documentId, { action: 'moderate', expectedVersion: 1, outcome: 'accept' })
       await act(editor, rejected.documentId, { action: 'moderate', expectedVersion: 1, outcome: 'reject' })
-      expect((await listPublishedDocuments({ type: 'appraisal' })).documents.map(document => document.id)).toEqual([accepted.documentId])
-      expect(await getPublisherDocument({ subject: editor, documentId: rejected.documentId })).toMatchObject({ status: 'archived', moderation: 'rejected' })
-      expect((await listPublisherModerationQueue({ subject: editor })).total).toBe(0)
+      expect((await listPublishedDocuments({ siteId: SITE, type: 'appraisal' })).documents.map(document => document.id)).toEqual([accepted.documentId])
+      expect(await getPublisherDocument({ siteId: SITE, subject: editor, documentId: rejected.documentId })).toMatchObject({ status: 'archived', moderation: 'rejected' })
+      expect((await listPublisherModerationQueue({ siteId: SITE, subject: editor })).total).toBe(0)
       // Only moderated types take submissions.
-      await expect(receivePublisherSubmission({ correlationId: id(), submitterId: carol, type: 'bulletin', content: bulletin('x') })).rejects.toMatchObject({ code: 'validation-failed' })
+      await expect(receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: carol, type: 'bulletin', content: bulletin('x') })).rejects.toMatchObject({ code: 'validation-failed' })
     })
 
     it('lists the queue only to moderators', async () => {
-      await receivePublisherSubmission({ correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
-      expect((await listPublisherModerationQueue({ subject: reader })).total).toBe(0)
+      await receivePublisherSubmission({ siteId: SITE, correlationId: id(), submitterId: carol, type: 'appraisal', content: appraisal(carol) })
+      expect((await listPublisherModerationQueue({ siteId: SITE, subject: reader })).total).toBe(0)
     })
   })
 
@@ -273,19 +273,19 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
 
       world.advance(59)
       expect(await runPublisherMaintenance()).toMatchObject({ published: 0, unpublished: 0 })
-      expect(await getPublishedDocument({ documentId: document.id })).toBeNull()
+      expect(await getPublishedDocument({ siteId: SITE, documentId: document.id })).toBeNull()
       world.advance(1)
       expect(await runPublisherMaintenance()).toMatchObject({ published: 1 })
-      expect((await getPublishedDocument({ documentId: document.id }))?.document.status).toBe('published')
+      expect((await getPublishedDocument({ siteId: SITE, documentId: document.id }))?.document.status).toBe('published')
       expect(await runPublisherMaintenance()).toMatchObject({ published: 0 })
 
       world.advance(59)
       await runPublisherMaintenance()
-      expect(await getPublishedDocument({ documentId: document.id })).not.toBeNull()
+      expect(await getPublishedDocument({ siteId: SITE, documentId: document.id })).not.toBeNull()
       world.advance(1)
       expect(await runPublisherMaintenance()).toMatchObject({ unpublished: 1 })
-      expect(await getPublishedDocument({ documentId: document.id })).toBeNull()
-      expect((await getPublisherDocument({ subject: editor, documentId: document.id })).status).toBe('archived')
+      expect(await getPublishedDocument({ siteId: SITE, documentId: document.id })).toBeNull()
+      expect((await getPublisherDocument({ siteId: SITE, subject: editor, documentId: document.id })).status).toBe('archived')
     })
 
     it('refuses scheduling for a type that does not allow it, and times out of order', async () => {
@@ -318,14 +318,14 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       let document = await create(editor, 'bulletin', bulletin('kept', 'One'))
       document = await act(editor, document, { action: 'save', expectedVersion: 1, content: bulletin('kept', 'Two') })
       document = await act(editor, document, { action: 'save', expectedVersion: 2, content: bulletin('kept', 'Three') })
-      const history = await listPublisherHistory({ subject: editor, documentId: document.id })
+      const history = await listPublisherHistory({ siteId: SITE, subject: editor, documentId: document.id })
       expect(history.map(version => version.version)).toEqual([3, 2, 1])
       expect(new Set(history.map(version => version.digest)).size).toBe(3)
-      expect((await getPublisherDocument({ subject: editor, documentId: document.id, version: 1 })).title).toBe('One')
+      expect((await getPublisherDocument({ siteId: SITE, subject: editor, documentId: document.id, version: 1 })).title).toBe('One')
 
       document = await act(editor, document, { action: 'restore', expectedVersion: 3, version: 1 })
       expect(document).toMatchObject({ version: 4, title: 'One' })
-      expect((await listPublisherHistory({ subject: editor, documentId: document.id }))[0]).toMatchObject({ version: 4, restoredFrom: 1, savedBy: alice })
+      expect((await listPublisherHistory({ siteId: SITE, subject: editor, documentId: document.id }))[0]).toMatchObject({ version: 4, restoredFrom: 1, savedBy: alice })
       await expect(act(editor, document, { action: 'restore', expectedVersion: 4, version: 9 })).rejects.toMatchObject({ code: 'validation-failed' })
     })
 

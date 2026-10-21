@@ -1,7 +1,7 @@
 import { getQuery } from 'h3'
 import { z } from 'zod'
 import { PUBLISHER_ORDERS, PublisherFailure, typeKeySchema } from '../../../shared/contracts'
-import { publisherHandler } from '../../internal/http'
+import { publisherHandler, readerSite } from '../../internal/http'
 import { listPublishedDocuments } from '../../utils/publisher-server'
 
 const known = z.strictObject({
@@ -22,5 +22,5 @@ export default publisherHandler(async (event) => {
     if (typeof value !== 'string' || value.length > 200 || field.length > 64) throw new PublisherFailure('validation-failed')
     filters[field] = value
   }
-  return listPublishedDocuments({ ...parsed.data, filters })
+  return listPublishedDocuments({ siteId: await readerSite(event), ...parsed.data, filters })
 })

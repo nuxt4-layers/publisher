@@ -16,6 +16,7 @@ import {
   publisherDocumentSchema,
   publisherEventSchema,
   publisherPermission,
+  siteIdSchema,
   PublisherCompositionError,
   PublisherFailure,
 } from '../../shared/contracts'
@@ -43,6 +44,7 @@ export interface Client {
 
 export interface DocumentRow {
   id: string
+  site_id: string
   type: string
   status: PublisherDocument['status']
   latest_version: number
@@ -145,12 +147,19 @@ export function declarationOf(type: string): PublisherTypeDeclaration {
   return declaration
 }
 
-/** Whether the subject holds the type's permission now. A failing port is `unavailable`. */
-export async function allows(subject: PublisherSubject | null | undefined, type: string, action: PublisherPermissionAction, documentId: string | null): Promise<boolean> {
+/** A site named by the host, checked: anything else is `validation-failed` (§3.4). */
+export function siteOf(siteId: unknown): string {
+  const parsed = siteIdSchema.safeParse(siteId)
+  if (!parsed.success) throw new PublisherFailure('validation-failed', 'not-a-site')
+  return parsed.data
+}
+
+/** Whether the subject holds the type's permission on the site now. A failing port is `unavailable`. */
+export async function allows(subject: PublisherSubject | null | undefined, siteId: string, type: string, action: PublisherPermissionAction, documentId: string | null): Promise<boolean> {
   if (!subject) return false
   const access = usePublisherAccessDecision()
   try {
-    return await access.allows({ identityId: subject.identityId, permission: publisherPermission(type, action), type, documentId, consistency: 'strong' }) === true
+    return await access.allows({ identityId: subject.identityId, permission: publisherPermission(type, action), siteId, type, documentId, consistency: 'strong' }) === true
   }
   catch {
     throw new PublisherFailure('unavailable', 'access-decision-failed')
@@ -158,8 +167,8 @@ export async function allows(subject: PublisherSubject | null | undefined, type:
 }
 
 /** Refuses without the permission (`forbidden`), then without the step-up its risk needs. */
-export async function authorise(subject: PublisherSubject, type: string, action: PublisherPermissionAction, documentId: string | null): Promise<void> {
-  if (!await allows(subject, type, action, documentId)) throw new PublisherFailure('forbidden')
+export async function authorise(subject: PublisherSubject, siteId: string, type: string, action: PublisherPermissionAction, documentId: string | null): Promise<void> {
+  if (!await allows(subject, siteId, type, action, documentId)) throw new PublisherFailure('forbidden')
   if (!meetsStepUp(declarationOf(type).risks[action], subject.assurance, now())) throw new PublisherFailure('insufficient-assurance')
 }
 
@@ -256,6 +265,7 @@ export function toDocument(row: DocumentRow, version: VersionRow, options: { for
   const live = row.status === 'published' && version.version === row.published_version
   return publisherDocumentSchema.parse({
     id: row.id,
+    siteId: row.site_id,
     type: row.type,
     locale: content.locale,
     title: content.title,
@@ -279,8 +289,9 @@ export function toDocument(row: DocumentRow, version: VersionRow, options: { for
   })
 }
 
-export async function loadDocument(client: Client, documentId: string, lock = false): Promise<DocumentRow | null> {
-  const { rows } = await client.query<DocumentRow>(`select * from ${schemaName()}."document" where "id" = $1${lock ? ' for update' : ''}`, [documentId])
+/** A document on the site, or `null`: one on another site is as missing as none. */
+export async function loadDocument(client: Client, siteId: string, documentId: string, lock = false): Promise<DocumentRow | null> {
+  const { rows } = await client.query<DocumentRow>(`select * from ${schemaName()}."document" where "id" = $1 and "site_id" = $2${lock ? ' for update' : ''}`, [documentId, siteId])
   return rows[0] ?? null
 }
 
@@ -311,7 +322,7 @@ export async function refreshLinks(client: Client, row: Pick<DocumentRow, 'id' |
 }
 
 /** How many other documents link to this one now. */
-export async function countBacklinks(client: Client, documentId: string): Promise<number> {
-  const { rows } = await client.query<{ count: number }>(`select count(*)::int as "count" from ${schemaName()}."link" where "to_id" = $1 and "from_id" <> $1`, [documentId])
+export async function countBacklinks(client: Client, siteId: string, documentId: string): Promise<number> {
+  const { rows } = await client.query<{ count: number }>(`select count(*)::int as "count" from ${schemaName()}."link" l join ${schemaName()}."document" d on d."id" = l."from_id" where l."to_id" = $1 and l."from_id" <> $1 and d."site_id" = $2`, [documentId, siteId])
   return rows[0]!.count
 }
