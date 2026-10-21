@@ -16,6 +16,9 @@ import type {
  * is and which assets exist.
  */
 
+/** The site the tests publish on, unless a test names another. */
+export const SITE = 'alpha'
+
 let counter = 0x100
 
 /** A fresh UUIDv7 for tests. */
@@ -31,8 +34,10 @@ interface ApprovalRecord {
 }
 
 export class World {
-  /** `identityId|permission` */
+  /** `identityId|permission` on every site, or `siteId|identityId|permission` on one. */
   readonly grants = new Set<string>()
+  /** The site of every question the access-decision port was asked. */
+  readonly askedSites: string[] = []
   readonly approvals = new Map<string, ApprovalRecord>()
   readonly published: PublisherEvent[] = []
   readonly assets = new Map<string, string>()
@@ -51,6 +56,11 @@ export class World {
   /** Every permission on a type: `view-draft`, `edit`, `publish`, `moderate`. */
   grantAll(identityId: string, type: string): void {
     this.grant(identityId, ...['view-draft', 'edit', 'publish', 'moderate'].map(action => `publisher.${type}.${action}`))
+  }
+
+  /** A permission on one site only. */
+  grantOn(siteId: string, identityId: string, ...permissions: string[]): void {
+    for (const permission of permissions) this.grants.add(`${siteId}|${identityId}|${permission}`)
   }
 
   revoke(identityId: string, permission: string): void {
@@ -78,9 +88,10 @@ export class World {
   }
 
   readonly access: PublisherAccessDecision = {
-    allows: async ({ identityId, permission }) => {
+    allows: async ({ identityId, permission, siteId }) => {
       this.check()
-      return this.grants.has(`${identityId}|${permission}`)
+      this.askedSites.push(siteId)
+      return this.grants.has(`${identityId}|${permission}`) || this.grants.has(`${siteId}|${identityId}|${permission}`)
     },
   }
 

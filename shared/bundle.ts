@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { PUBLISHER_MODERATION_STATES, PUBLISHER_STATUSES, publisherContentSchema } from './documents'
 import { identifierSchema, instantSchema } from './identifiers'
 import { typeKeySchema } from './types'
-import { sitePathSchema } from './values'
+import { siteIdSchema, sitePathSchema } from './values'
 
 /**
  * The portable bundle (docs/contracts.md §16): envelopes, every version's
@@ -51,6 +51,7 @@ export const publisherPersonExportSchema = z.strictObject({
   version: z.literal(1),
   identityId: identifierSchema,
   exportedAt: instantSchema,
-  documents: z.array(publisherBundleDocumentSchema),
+  /** A person's documents may be on several sites: each names its own. */
+  documents: z.array(publisherBundleDocumentSchema.extend({ siteId: siteIdSchema })),
 })
 export type PublisherPersonExport = z.infer<typeof publisherPersonExportSchema>

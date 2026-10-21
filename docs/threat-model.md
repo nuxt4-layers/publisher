@@ -45,6 +45,7 @@ The publisher decides what a site says in public, so its first duty is that noth
 | T18 | A missing or failing port leads to an implicit store, a default type or a partial answer | Required ports fail closed (`PublisherCompositionError`, `unavailable`); no in-memory store; no built-in type; stored documents of an unregistered type stop the layer at start-up | composition tests | Implemented |
 | T19 | Injection through SQL, feed XML or headers | Parameterised SQL only; every row parsed with the contract's schemas before it leaves the layer; feed text escaped; origins parsed | reading "escaping every title"; contracts | Implemented |
 | T20 | An import bypasses the checks a save makes | Imports check every version against its type, all or nothing, and only into documents that do not exist | `tests/bundle.test.ts` | Implemented |
+| T21 | One site's drafts, documents, links or administration reached from another (tenant isolation) | Every query names the site; the endpoints take it only from the host's site resolver; ports are told the site; addresses, redirects and `doc:` links resolve within a site; a document on another site is as missing as none | `tests/sites.test.ts`; http "serves and administers each site only on its own hosts" | Implemented |
 
 ## 4. Gaps and risk treatments
 

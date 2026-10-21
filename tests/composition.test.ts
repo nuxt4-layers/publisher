@@ -19,7 +19,7 @@ import {
 import { hasDatabase, requireDatabaseInCi } from './support/database'
 import { Harness } from './support/publisher'
 import { appraisalType, bulletin, bulletinType, landing, landingType, TEST_TYPES } from './support/types'
-import { id, person, World } from './support/world'
+import { id, person, World, SITE } from './support/world'
 
 requireDatabaseInCi()
 
@@ -49,8 +49,8 @@ describe('composition: start-up', () => {
   it('fails closed without the database: no implicit store', async () => {
     providePublisherDocumentTypes(TEST_TYPES)
     const subject = person(id(), new Date())
-    await expect(createPublisherDocument({ subject, correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toBeInstanceOf(PublisherCompositionError)
-    await expect(getPublishedDocument({ path: '/anything' })).rejects.toBeInstanceOf(PublisherCompositionError)
+    await expect(createPublisherDocument({ siteId: SITE, subject, correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toBeInstanceOf(PublisherCompositionError)
+    await expect(getPublishedDocument({ siteId: SITE, path: '/anything' })).rejects.toBeInstanceOf(PublisherCompositionError)
     await expect(checkPublisherComposition()).rejects.toBeInstanceOf(PublisherCompositionError)
   })
 })
@@ -76,18 +76,18 @@ describe.skipIf(!hasDatabase)('composition: required ports fail closed (PostgreS
     world = await harness.reset()
     const alice = id()
     world.grantAll(alice, 'bulletin')
-    await createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('kept') })
+    await createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('kept') })
     providePublisherDocumentTypes([landingType, appraisalType])
     await expect(checkPublisherComposition()).rejects.toThrow(/bulletin/)
     // Nor is the stored document served as something else.
-    await expect(getPublishedDocument({ path: '/bulletins/2026/10/21/kept' })).rejects.toBeInstanceOf(PublisherCompositionError)
+    await expect(getPublishedDocument({ siteId: SITE, path: '/bulletins/2026/10/21/kept' })).rejects.toBeInstanceOf(PublisherCompositionError)
   })
 
   it('refuses a document of an unregistered type', async () => {
     world = await harness.reset()
     const alice = id()
     world.grant(alice, 'publisher.recipe.edit')
-    await expect(createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'recipe', content: bulletin('x') })).rejects.toMatchObject({ code: 'validation-failed', reason: 'unknown-type' })
+    await expect(createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'recipe', content: bulletin('x') })).rejects.toMatchObject({ code: 'validation-failed', reason: 'unknown-type' })
   })
 
   it('fails closed without the access decision', async () => {
@@ -96,7 +96,7 @@ describe.skipIf(!hasDatabase)('composition: required ports fail closed (PostgreS
     providePublisherDatabase({ dialect: 'postgres', pool: harness.pool })
     providePublisherDocumentTypes(TEST_TYPES)
     providePublisherEventSink(world.sink)
-    await expect(createPublisherDocument({ subject: person(id(), world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toBeInstanceOf(PublisherCompositionError)
+    await expect(createPublisherDocument({ siteId: SITE, subject: person(id(), world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toBeInstanceOf(PublisherCompositionError)
     await expect(checkPublisherComposition()).rejects.toThrow(/AccessDecision/)
   })
 
@@ -105,13 +105,13 @@ describe.skipIf(!hasDatabase)('composition: required ports fail closed (PostgreS
     const alice = id()
     world.grantAll(alice, 'landing')
     const subject = person(alice, world.time)
-    const created = await createPublisherDocument({ subject, correlationId: id(), type: 'landing', content: landing('about') })
+    const created = await createPublisherDocument({ siteId: SITE, subject, correlationId: id(), type: 'landing', content: landing('about') })
     clearPublisherComposition()
     providePublisherDatabase({ dialect: 'postgres', pool: harness.pool })
     providePublisherDocumentTypes(TEST_TYPES)
     providePublisherAccessDecision(world.access)
     providePublisherEventSink(world.sink)
-    await expect(transitionPublisherDocument({ subject, correlationId: id(), documentId: created.id, request: { action: 'submit', expectedVersion: 1 } })).rejects.toBeInstanceOf(PublisherCompositionError)
+    await expect(transitionPublisherDocument({ siteId: SITE, subject, correlationId: id(), documentId: created.id, request: { action: 'submit', expectedVersion: 1 } })).rejects.toBeInstanceOf(PublisherCompositionError)
     await expect(checkPublisherComposition()).rejects.toThrow(/Approval/)
     expect((await harness.outbox()).map(event => event.type)).toEqual(['publisher.document-created'])
   })
@@ -121,7 +121,7 @@ describe.skipIf(!hasDatabase)('composition: required ports fail closed (PostgreS
     const alice = id()
     world.grantAll(alice, 'bulletin')
     world.failing = true
-    await expect(createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toMatchObject({ code: 'unavailable' })
+    await expect(createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })).rejects.toMatchObject({ code: 'unavailable' })
     expect(await harness.outbox()).toEqual([])
   })
 
@@ -129,7 +129,7 @@ describe.skipIf(!hasDatabase)('composition: required ports fail closed (PostgreS
     world = await harness.reset()
     const alice = id()
     world.grantAll(alice, 'bulletin')
-    await createPublisherDocument({ subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })
+    await createPublisherDocument({ siteId: SITE, subject: person(alice, world.time), correlationId: id(), type: 'bulletin', content: bulletin('a') })
     world.sinkFailing = true
     await expect(relayPublisherOutbox()).rejects.toThrow()
     world.sinkFailing = false

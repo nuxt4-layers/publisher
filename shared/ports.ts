@@ -28,11 +28,12 @@ export type Consistency = 'strong' | 'bounded'
 
 /**
  * Authorisation, through the host: whether an identity holds one of the
- * publisher's permissions now. `documentId` is `null` for type-wide
- * questions (listing, creating); the host decides on which group to ask.
+ * publisher's permissions now, on a site. `documentId` is `null` for
+ * type-wide questions (listing, creating); the host decides on which group
+ * to ask, such as the site's tenant's root group.
  */
 export interface PublisherAccessDecision {
-  allows(input: { identityId: string, permission: string, type: string, documentId: string | null, consistency: Consistency }): Promise<boolean>
+  allows(input: { identityId: string, permission: string, siteId: string, type: string, documentId: string | null, consistency: Consistency }): Promise<boolean>
 }
 
 export type PublisherApprovalState = 'pending' | 'approved' | 'rejected' | 'expired'
@@ -43,6 +44,7 @@ export type PublisherApprovalState = 'pending' | 'approved' | 'rejected' | 'expi
  */
 export interface PublisherApproval {
   request(input: {
+    siteId: string
     documentId: string
     type: string
     version: number
@@ -62,6 +64,15 @@ export interface PublisherSubjectResolver {
   resolve(event: unknown): Promise<PublisherSubject | null>
 }
 
+/**
+ * Which site an HTTP request is for (an h3 event, typed loosely), such as
+ * the tenant Configuration finds for the request's host name; `null` when
+ * the request is for no site. A host with one site answers a constant.
+ */
+export interface PublisherSiteResolver {
+  resolve(event: unknown): Promise<string | null>
+}
+
 export interface PublisherClock {
   now(): Date
 }
@@ -73,10 +84,10 @@ export interface PublisherEventSink {
 
 /** The host's asset store: each asset's address, or `null` when unknown. */
 export interface PublisherAssetResolver {
-  resolve(input: { assetIds: readonly string[] }): Promise<Readonly<Record<string, { url: string, width?: number, height?: number } | null>>>
+  resolve(input: { siteId: string, assetIds: readonly string[] }): Promise<Readonly<Record<string, { url: string, width?: number, height?: number } | null>>>
 }
 
 /** The host's title template, e.g. Configuration's `seo.title-template`. */
 export interface PublisherTitleTemplate {
-  format(input: { title: string, type: string, locale: string }): string | Promise<string>
+  format(input: { siteId: string, title: string, type: string, locale: string }): string | Promise<string>
 }
