@@ -2,7 +2,7 @@
 
 > **In short:** register your document types, fill the publisher's ports from the IAM members and your host, then call its services. The publisher stores, versions, approves, publishes and serves documents. How they look is up to you.
 
-This guide describes the publisher once it is headless ([ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0009-headless-capability-layers.md); [migration plan](headless-migration.md)). The [contract](contracts.md) is the full reference.
+This guide describes the publisher once it is headless ([ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0009-headless-capability-layers.md), [ADR-0011](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md); [migration plan](headless-migration.md)). The [contract](contracts.md) is the full reference.
 
 ## What it gives you
 
@@ -11,7 +11,7 @@ This guide describes the publisher once it is headless ([ADR-0009](https://githu
 | **Server functions** | Every task: create, save, submit, publish, schedule, archive, restore, moderate, read, list, export |
 | **HTTP API** (`/api/publisher/*`) | The same tasks for browsers and other services; can be switched off |
 | **A typed client** (`usePublisher()`) | Calling the HTTP API from your own screens: data and actions only |
-| **Safe content** | Markdown returned as a safe tree your components draw; never as HTML |
+| **Safe content** | Rich text returned as `rich-text`'s safe tree, which your components draw; never as HTML |
 | **Feeds and sitemap entries** | RSS, Atom, and paths for your `sitemap.xml` |
 | **Events** | What happened, for search indexes, caches or notifications |
 
@@ -82,13 +82,14 @@ A type is data, not code in the layer. Copy from [`./examples`](../examples/inde
 
 ```ts
 import { z } from 'zod'
-import { definePublisherDocumentType, markdownSchema } from '@nuxt4-layers/publisher/contracts'
+import { definePublisherDocumentType } from '@nuxt4-layers/publisher/contracts'
+import { richTextSchema } from '@nuxt4-layers/rich-text'
 
 export const postsType = definePublisherDocumentType({
   type: 'post',
   label: { one: 'Post', many: 'Posts' },
-  fields: z.strictObject({ body: markdownSchema(), tags: z.array(z.string().max(40)).max(10) }),
-  markdownFields: ['body'],
+  // The body is a full document; the publisher checks every save against that profile
+  fields: z.strictObject({ body: richTextSchema({ profile: 'document', max: 50_000 }), tags: z.array(z.string().max(40)).max(10) }),
   address: { kind: 'path', base: '/blog', pattern: 'date-slug' },
   listing: { listable: true, order: 'published-desc', filterable: ['tags'] },
   lifecycle: { approval: false, moderation: false, scheduling: true },
@@ -151,7 +152,7 @@ if (data.value?.kind === 'redirect') await navigateTo(data.value.to, { redirectC
   <main>
     <article v-if="data?.kind === 'document'">
       <h1>{{ data.rendered.document.title }}</h1>
-      <!-- Each Markdown field arrives as a safe tree: draw it with ui's renderer -->
+      <!-- Each rich-text field arrives as a safe tree: draw it with ui's renderer -->
       <UiRichText v-for="field in data.rendered.markdown" :key="field.path" :nodes="field.nodes" :links="data.rendered.links" />
     </article>
     <NotFound v-else />
