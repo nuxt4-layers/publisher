@@ -3,7 +3,7 @@ import { getCookie } from 'h3'
 import type { H3Event } from 'h3'
 import { UUID_V7_PATTERN } from '../../../shared/contracts'
 import { TEST_TYPES } from '../../../tests/support/types'
-import { World } from '../../../tests/support/world'
+import { SITE, World } from '../../../tests/support/world'
 
 /**
  * The playground's composition, as a host's Nitro plugin would be. It
@@ -25,6 +25,8 @@ export let pool: pg.Pool | null = null
 export default defineNitroPlugin(async () => {
   providePublisherDocumentTypes(TEST_TYPES)
   providePublisherTitleTemplate({ format: ({ title }) => `${title} · Publisher playground` })
+  // One site: a host serving several would answer each host name's tenant here.
+  providePublisherSiteResolver({ resolve: async () => SITE })
   providePublisherSubjectResolver({
     async resolve(event) {
       if (!testMode) return null

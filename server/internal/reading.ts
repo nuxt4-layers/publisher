@@ -27,6 +27,7 @@ import {
   publisherResolutionSchema,
   publisherSitemapEntrySchema,
   publisherVersionSchema,
+  siteIdSchema,
   sitePathSchema,
 } from '../../shared/contracts'
 import { usePublisherAssetResolver, usePublisherDatabase, usePublisherEventSink, usePublisherRegistry, usePublisherTitleTemplate } from '../utils/publisher-composition'
@@ -47,6 +48,7 @@ import {
   pathOf,
   refreshLinks,
   schemaName,
+  siteOf,
   subjectOf,
   toDocument,
   withClient,
@@ -56,16 +58,17 @@ import {
 
 // --- Administration --------------------------------------------------------
 
-async function viewable(client: Client, subject: PublisherSubject, documentId: string): Promise<DocumentRow> {
-  const row = identifierSchema.safeParse(documentId).success ? await loadDocument(client, documentId) : null
+async function viewable(client: Client, siteId: string, subject: PublisherSubject, documentId: string): Promise<DocumentRow> {
+  const row = identifierSchema.safeParse(documentId).success ? await loadDocument(client, siteId, documentId) : null
   if (!row) throw new PublisherFailure('forbidden')
-  if (!await allows(subject, row.type, 'view-draft', row.id)) throw new PublisherFailure('forbidden')
+  if (!await allows(subject, siteId, row.type, 'view-draft', row.id)) throw new PublisherFailure('forbidden')
   return row
 }
 
-export async function getDocument(input: { subject: PublisherSubject, documentId: string, version?: number }): Promise<PublisherDocument> {
+export async function getDocument(input: { siteId: string, subject: PublisherSubject, documentId: string, version?: number }): Promise<PublisherDocument> {
+  const siteId = siteOf(input.siteId)
   return withClient(async (client) => {
-    const row = await viewable(client, input.subject, input.documentId)
+    const row = await viewable(client, siteId, input.subject, input.documentId)
     const version = await loadVersion(client, row.id, input.version ?? row.latest_version)
     if (!version) throw new PublisherFailure('validation-failed', 'unknown-version')
     return toDocument(row, version)
@@ -87,34 +90,37 @@ function paging(input: { limit?: number, offset?: number }): { limit: number, of
   return { limit, offset }
 }
 
-export async function listDocuments(input: { subject: PublisherSubject, type: string, search?: string, status?: PublisherStatus, limit?: number, offset?: number }): Promise<PublisherListing> {
+export async function listDocuments(input: { siteId: string, subject: PublisherSubject, type: string, search?: string, status?: PublisherStatus, limit?: number, offset?: number }): Promise<PublisherListing> {
   declarationOf(input.type)
   const { limit, offset } = paging(input)
   return withClient(async (client) => {
-    if (!await allows(input.subject, input.type, 'view-draft', null)) throw new PublisherFailure('forbidden')
-    const values: unknown[] = [input.type]
-    let where = 'd."type" = $1'
+    const siteId = siteOf(input.siteId)
+    if (!await allows(input.subject, siteId, input.type, 'view-draft', null)) throw new PublisherFailure('forbidden')
+    const values: unknown[] = [input.type, siteId]
+    let where = 'd."type" = $1 and d."site_id" = $2'
     if (input.status) where += ` and d."status" = $${values.push(input.status)}`
     if (input.search) where += ` and v."content"->>'title' ilike $${values.push(`%${input.search.slice(0, 100).replace(/[\\%_]/g, character => `\\${character}`)}%`)}`
     return listLatest(client, where, values, limit, offset)
   })
 }
 
-export async function listModerationQueue(input: { subject: PublisherSubject, type?: string }): Promise<PublisherListing> {
+export async function listModerationQueue(input: { siteId: string, subject: PublisherSubject, type?: string }): Promise<PublisherListing> {
+  const siteId = siteOf(input.siteId)
   return withClient(async (client) => {
     const types: string[] = []
     for (const declaration of usePublisherRegistry().values()) {
       if (!declaration.lifecycle.moderation || (input.type && input.type !== declaration.type)) continue
-      if (await allows(input.subject, declaration.type, 'moderate', null)) types.push(declaration.type)
+      if (await allows(input.subject, siteId, declaration.type, 'moderate', null)) types.push(declaration.type)
     }
     if (types.length === 0) return { documents: [], total: 0 }
-    return listLatest(client, `d."type" = any($1::text[]) and d."moderation" = 'pending' and d."status" = 'in-review'`, [types], 100, 0)
+    return listLatest(client, `d."type" = any($1::text[]) and d."site_id" = $2 and d."moderation" = 'pending' and d."status" = 'in-review'`, [types, siteId], 100, 0)
   })
 }
 
-export async function listHistory(input: { subject: PublisherSubject, documentId: string }): Promise<PublisherVersion[]> {
+export async function listHistory(input: { siteId: string, subject: PublisherSubject, documentId: string }): Promise<PublisherVersion[]> {
+  const siteId = siteOf(input.siteId)
   return withClient(async (client) => {
-    const row = await viewable(client, input.subject, input.documentId)
+    const row = await viewable(client, siteId, input.subject, input.documentId)
     const { rows } = await client.query<VersionRow>(`select * from ${schemaName()}."version" where "document_id" = $1 order by "version" desc`, [row.id])
     return rows.map(version => publisherVersionSchema.parse({
       documentId: version.document_id,
@@ -127,17 +133,18 @@ export async function listHistory(input: { subject: PublisherSubject, documentId
   })
 }
 
-export async function listBacklinks(input: { subject: PublisherSubject, documentId: string }): Promise<PublisherBacklink[]> {
+export async function listBacklinks(input: { siteId: string, subject: PublisherSubject, documentId: string }): Promise<PublisherBacklink[]> {
+  const siteId = siteOf(input.siteId)
   return withClient(async (client) => {
-    const row = await viewable(client, input.subject, input.documentId)
+    const row = await viewable(client, siteId, input.subject, input.documentId)
     const { rows } = await client.query<{ id: string, type: string, status: PublisherStatus, title: string }>(
-      `select d."id", d."type", d."status", v."content"->>'title' as "title" from ${schemaName()}."link" l join ${schemaName()}."document" d on d."id" = l."from_id" join ${schemaName()}."version" v on v."document_id" = d."id" and v."version" = d."latest_version" where l."to_id" = $1 and l."from_id" <> $1 order by d."id"`,
-      [row.id],
+      `select d."id", d."type", d."status", v."content"->>'title' as "title" from ${schemaName()}."link" l join ${schemaName()}."document" d on d."id" = l."from_id" join ${schemaName()}."version" v on v."document_id" = d."id" and v."version" = d."latest_version" where l."to_id" = $1 and l."from_id" <> $1 and d."site_id" = $2 order by d."id"`,
+      [row.id, siteId],
     )
     const mayView = new Map<string, boolean>()
     const backlinks: PublisherBacklink[] = []
     for (const link of rows) {
-      if (!mayView.has(link.type)) mayView.set(link.type, await allows(input.subject, link.type, 'view-draft', null))
+      if (!mayView.has(link.type)) mayView.set(link.type, await allows(input.subject, siteId, link.type, 'view-draft', null))
       backlinks.push(publisherBacklinkSchema.parse({ documentId: link.id, type: link.type, status: link.status, title: mayView.get(link.type) ? link.title : null }))
     }
     return backlinks
@@ -147,6 +154,7 @@ export async function listBacklinks(input: { subject: PublisherSubject, document
 // --- Readers ---------------------------------------------------------------
 
 interface Viewing {
+  siteId: string
   viewer?: PublisherSubject | null
   preview?: boolean
 }
@@ -157,7 +165,7 @@ async function render(client: Client, row: DocumentRow, version: VersionRow, pre
   const { documentIds, assetIds } = namedBy(declaration, version.content)
   const documents: Record<string, string | null> = {}
   if (documentIds.length > 0) {
-    const { rows } = await client.query<{ id: string, path: string | null }>(`select "id", "path" from ${schemaName()}."document" where "id" = any($1::text[]) and "status" = 'published'`, [documentIds])
+    const { rows } = await client.query<{ id: string, path: string | null }>(`select "id", "path" from ${schemaName()}."document" where "id" = any($1::text[]) and "site_id" = $2 and "status" = 'published'`, [documentIds, row.site_id])
     for (const id of documentIds) documents[id] = rows.find(target => target.id === id)?.path ?? null
   }
   const assets: PublisherRendered['links']['assets'] = {}
@@ -166,7 +174,7 @@ async function render(client: Client, row: DocumentRow, version: VersionRow, pre
     let answer: Awaited<ReturnType<NonNullable<typeof resolver>['resolve']>> = {}
     if (resolver) {
       try {
-        answer = await resolver.resolve({ assetIds })
+        answer = await resolver.resolve({ siteId: row.site_id, assetIds })
       }
       catch {
         throw new PublisherFailure('unavailable', 'asset-resolver-failed')
@@ -182,7 +190,7 @@ async function render(client: Client, row: DocumentRow, version: VersionRow, pre
   let title = document.title
   if (template) {
     try {
-      title = String(await template.format({ title: document.title, type: row.type, locale: document.locale }))
+      title = String(await template.format({ siteId: row.site_id, title: document.title, type: row.type, locale: document.locale }))
     }
     catch {
       throw new PublisherFailure('unavailable', 'title-template-failed')
@@ -208,7 +216,7 @@ async function readable(client: Client, rows: DocumentRow[], viewing: Viewing, m
   if (viewing.preview && viewing.viewer) {
     for (const row of rows) {
       if (!matches(row).latest || row.status === 'archived') continue
-      if (await allows(viewing.viewer, row.type, 'view-draft', row.id)) return render(client, row, (await loadVersion(client, row.id, row.latest_version))!, true)
+      if (await allows(viewing.viewer, row.site_id, row.type, 'view-draft', row.id)) return render(client, row, (await loadVersion(client, row.id, row.latest_version))!, true)
     }
   }
   const live = rows.find(row => row.status === 'published' && row.published_version !== null && matches(row).published)
@@ -216,28 +224,31 @@ async function readable(client: Client, rows: DocumentRow[], viewing: Viewing, m
 }
 
 export async function getPublished(input: Viewing & ({ path: string } | { documentId: string })): Promise<PublisherRendered | null> {
+  // A malformed site has nothing published on it.
+  if (!siteIdSchema.safeParse(input.siteId).success) return null
   return withClient(client => findPublished(client, input))
 }
 
 async function findPublished(client: Client, input: Viewing & ({ path: string } | { documentId: string })): Promise<PublisherRendered | null> {
   if ('documentId' in input) {
-    const row = identifierSchema.safeParse(input.documentId).success ? await loadDocument(client, input.documentId) : null
+    const row = identifierSchema.safeParse(input.documentId).success ? await loadDocument(client, input.siteId, input.documentId) : null
     return row ? readable(client, [row], input, () => ({ published: true, latest: true })) : null
   }
   if (!sitePathSchema.safeParse(input.path).success) return null
-  const { rows } = await client.query<DocumentRow>(`select * from ${schemaName()}."document" where "path" = $1 or "latest_path" = $1 order by "path" is null, "id"`, [input.path])
+  const { rows } = await client.query<DocumentRow>(`select * from ${schemaName()}."document" where "site_id" = $2 and ("path" = $1 or "latest_path" = $1) order by "path" is null, "id"`, [input.path, input.siteId])
   return readable(client, rows, input, row => ({ published: row.path === input.path, latest: row.latest_path === input.path }))
 }
 
 export async function resolvePath(input: Viewing & { path: string }): Promise<PublisherResolution> {
+  if (!siteIdSchema.safeParse(input.siteId).success) return { kind: 'none' }
   return withClient(async (client) => {
     if (typeof input.path !== 'string' || !sitePathSchema.safeParse(input.path).success) return { kind: 'none' }
     const rendered = await findPublished(client, input)
     if (rendered) return publisherResolutionSchema.parse({ kind: 'document', rendered })
     const target = async (path: string) => {
       const { rows } = await client.query<{ path: string }>(
-        `select d."path" from ${schemaName()}."redirect" r join ${schemaName()}."document" d on d."id" = r."document_id" where r."path" = $1 and d."status" = 'published' and d."path" is not null`,
-        [path],
+        `select d."path" from ${schemaName()}."redirect" r join ${schemaName()}."document" d on d."id" = r."document_id" where r."site_id" = $2 and r."path" = $1 and d."site_id" = $2 and d."status" = 'published' and d."path" is not null`,
+        [path, input.siteId],
       )
       return rows[0]?.path ?? null
     }
@@ -245,7 +256,7 @@ export async function resolvePath(input: Viewing & { path: string }): Promise<Pu
     if (redirected && redirected !== input.path) return { kind: 'redirect', to: redirected, status: 301 }
     if (input.path.length > 1 && input.path.endsWith('/')) {
       const bare = input.path.replace(/\/+$/, '')
-      if (bare && (await findPublished(client, { path: bare }) || await target(bare))) return { kind: 'redirect', to: (await target(bare)) ?? bare, status: 301 }
+      if (bare && (await findPublished(client, { siteId: input.siteId, path: bare }) || await target(bare))) return { kind: 'redirect', to: (await target(bare)) ?? bare, status: 301 }
     }
     return { kind: 'none' }
   })
@@ -267,12 +278,12 @@ const ORDER = {
 export async function listPublished(query: PublisherListingQuery): Promise<PublisherListing> {
   const parsed = publisherListingQuerySchema.safeParse(query)
   if (!parsed.success) throw new PublisherFailure('validation-failed')
-  const { type, locale, filters, order, limit, offset } = parsed.data
+  const { siteId, type, locale, filters, order, limit, offset } = parsed.data
   const declaration = listable(type)
   for (const field of Object.keys(filters)) if (!declaration.listing.filterable.includes(field)) throw new PublisherFailure('validation-failed', 'unknown-filter')
   return withClient(async (client) => {
-    const values: unknown[] = [type]
-    let where = `d."type" = $1 and d."status" = 'published'`
+    const values: unknown[] = [type, siteId]
+    let where = `d."type" = $1 and d."site_id" = $2 and d."status" = 'published'`
     if (locale) where += ` and v."content"->>'locale' = $${values.push(locale)}`
     for (const [field, value] of Object.entries(filters)) {
       const name = values.push(field)
@@ -298,16 +309,16 @@ function originOf(origin: string): string {
   throw new PublisherFailure('validation-failed', 'not-an-origin')
 }
 
-export async function getFeed(input: { type: string, format: PublisherFeedFormat, origin: string, limit?: number }): Promise<string> {
+export async function getFeed(input: { siteId: string, type: string, format: PublisherFeedFormat, origin: string, limit?: number }): Promise<string> {
   const declaration = listable(input.type)
   const origin = originOf(input.origin)
   if (input.format !== 'rss' && input.format !== 'atom') throw new PublisherFailure('validation-failed')
-  const { documents } = await listPublished({ type: input.type, limit: Math.min(input.limit ?? 20, 100) })
+  const { documents } = await listPublished({ siteId: input.siteId, type: input.type, limit: Math.min(input.limit ?? 20, 100) })
   const template = usePublisherTitleTemplate()
   let title = declaration.label.many
   if (template) {
     try {
-      title = String(await template.format({ title: declaration.label.many, type: declaration.type, locale: documents[0]?.locale ?? '' }))
+      title = String(await template.format({ siteId: input.siteId, title: declaration.label.many, type: declaration.type, locale: documents[0]?.locale ?? '' }))
     }
     catch {
       throw new PublisherFailure('unavailable', 'title-template-failed')
@@ -340,9 +351,10 @@ export async function getFeed(input: { type: string, format: PublisherFeedFormat
   return `<?xml version="1.0" encoding="UTF-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom"><title>${escapeXml(title)}</title><id>${escapeXml(`${origin}/#${declaration.type}`)}</id><link href="${escapeXml(origin)}/"/><updated>${updated}</updated>${entries.join('')}</feed>\n`
 }
 
-export async function listSitemap(): Promise<PublisherSitemapEntry[]> {
+export async function listSitemap(input: { siteId: string }): Promise<PublisherSitemapEntry[]> {
+  const siteId = siteOf(input.siteId)
   return withClient(async (client) => {
-    const { rows } = await client.query<{ path: string, updated_at: Date, type: string }>(`select "path", "updated_at", "type" from ${schemaName()}."document" where "status" = 'published' and "path" is not null order by "path"`)
+    const { rows } = await client.query<{ path: string, updated_at: Date, type: string }>(`select "path", "updated_at", "type" from ${schemaName()}."document" where "site_id" = $1 and "status" = 'published' and "path" is not null order by "path"`, [siteId])
     return rows.map(row => publisherSitemapEntrySchema.parse({ path: row.path, lastModified: new Date(row.updated_at).toISOString(), type: row.type }))
   })
 }
@@ -377,13 +389,14 @@ export async function relayOutbox(input: { limit?: number }): Promise<number> {
 
 const iso = (value: Date | null) => value === null ? null : new Date(value).toISOString()
 
-async function bundleDocuments(client: Client, where: string, values: unknown[]): Promise<PublisherBundleDocument[]> {
+async function bundleDocuments(client: Client, where: string, values: unknown[]): Promise<(PublisherBundleDocument & { siteId: string })[]> {
   const { rows } = await client.query<DocumentRow>(`select * from ${schemaName()}."document" where ${where} order by "created_at", "id"`, values)
-  const documents: PublisherBundleDocument[] = []
+  const documents: (PublisherBundleDocument & { siteId: string })[] = []
   for (const row of rows) {
     const { rows: versions } = await client.query<VersionRow>(`select * from ${schemaName()}."version" where "document_id" = $1 order by "version"`, [row.id])
     const { rows: redirects } = await client.query<{ path: string }>(`select "path" from ${schemaName()}."redirect" where "document_id" = $1 order by "path"`, [row.id])
     documents.push({
+      siteId: row.site_id,
       id: row.id,
       type: row.type,
       status: row.status,
@@ -402,7 +415,8 @@ async function bundleDocuments(client: Client, where: string, values: unknown[])
   return documents
 }
 
-export async function exportContent(input: { types?: readonly string[] }): Promise<PublisherBundle> {
+export async function exportContent(input: { siteId: string, types?: readonly string[] }): Promise<PublisherBundle> {
+  const siteId = siteOf(input.siteId)
   const types = input.types ? [...input.types] : [...usePublisherRegistry().keys()].sort()
   for (const type of types) declarationOf(type)
   return withClient(async client => publisherBundleSchema.parse({
@@ -410,11 +424,12 @@ export async function exportContent(input: { types?: readonly string[] }): Promi
     version: 1,
     exportedAt: now().toISOString(),
     types,
-    documents: await bundleDocuments(client, `"type" = any($1::text[])`, [types]),
+    documents: (await bundleDocuments(client, `"type" = any($1::text[]) and "site_id" = $2`, [types, siteId])).map(({ siteId: _, ...document }) => document),
   }))
 }
 
-export async function importContent(input: { bundle: unknown, correlationId: string }): Promise<{ documents: number, versions: number }> {
+export async function importContent(input: { siteId: string, bundle: unknown, correlationId: string }): Promise<{ documents: number, versions: number }> {
+  const siteId = siteOf(input.siteId)
   const parsed = publisherBundleSchema.safeParse(input.bundle)
   if (!parsed.success) throw new PublisherFailure('validation-failed')
   const bundle = parsed.data
@@ -438,8 +453,8 @@ export async function importContent(input: { bundle: unknown, correlationId: str
       const path = document.status === 'published' && published ? pathOf(declaration, published.content, publishedAt) : null
       try {
         await client.query(
-          `insert into ${schemaName()}."document" ("id", "type", "status", "latest_version", "published_version", "review_version", "moderation", "publish_at", "unpublish_at", "created_at", "updated_at", "published_at", "path", "latest_path") values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-          [document.id, document.type, document.status, latest.version, document.publishedVersion, document.reviewVersion, document.moderation, document.publishAt, document.unpublishAt, document.createdAt, document.updatedAt, document.publishedAt, path, pathOf(declaration, latest.content, publishedAt)],
+          `insert into ${schemaName()}."document" ("id", "site_id", "type", "status", "latest_version", "published_version", "review_version", "moderation", "publish_at", "unpublish_at", "created_at", "updated_at", "published_at", "path", "latest_path") values ($1, $15, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          [document.id, document.type, document.status, latest.version, document.publishedVersion, document.reviewVersion, document.moderation, document.publishAt, document.unpublishAt, document.createdAt, document.updatedAt, document.publishedAt, path, pathOf(declaration, latest.content, publishedAt), siteId],
         )
       }
       catch (error) {
@@ -456,13 +471,13 @@ export async function importContent(input: { bundle: unknown, correlationId: str
         versionCount++
       }
       for (const redirect of document.redirects) {
-        await client.query(`insert into ${schemaName()}."redirect" ("path", "document_id") values ($1, $2) on conflict ("path") do update set "document_id" = excluded."document_id"`, [redirect, document.id])
+        await client.query(`insert into ${schemaName()}."redirect" ("site_id", "path", "document_id") values ($3, $1, $2) on conflict ("site_id", "path") do update set "document_id" = excluded."document_id"`, [redirect, document.id, siteId])
       }
     }
     for (const { document } of checked) {
       await refreshLinks(client, { id: document.id, type: document.type, latest_version: Math.max(...document.versions.map(version => version.version)), published_version: document.publishedVersion })
     }
-    await emit(client, 'publisher.content-imported', { documents: checked.length, versions: versionCount }, { correlationId: input.correlationId, actorId: null })
+    await emit(client, 'publisher.content-imported', { siteId, documents: checked.length, versions: versionCount }, { correlationId: input.correlationId, actorId: null })
     return { documents: checked.length, versions: versionCount }
   })
 }
@@ -492,7 +507,7 @@ export async function erasePerson(input: { identityId: string, correlationId: st
     const context = { correlationId: input.correlationId, actorId: null }
     let versions = 0
     for (const row of rows) {
-      if (row.status === 'published') await emit(client, 'publisher.document-unpublished', { documentId: row.id, type: row.type, reasonCode: 'erased' }, context)
+      if (row.status === 'published') await emit(client, 'publisher.document-unpublished', { siteId: row.site_id, documentId: row.id, type: row.type, reasonCode: 'erased' }, context)
       versions += row.versions
     }
     const ids = rows.map(row => row.id)

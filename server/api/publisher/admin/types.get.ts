@@ -1,5 +1,5 @@
 import { PUBLISHER_PERMISSION_ACTIONS } from '../../../../shared/contracts'
-import { publisherHandler, requireSubject } from '../../../internal/http'
+import { adminSite, publisherHandler, requireSubject } from '../../../internal/http'
 import { allows } from '../../../internal/store'
 import { usePublisherRegistry } from '../../../utils/publisher-composition'
 
@@ -10,9 +10,10 @@ import { usePublisherRegistry } from '../../../utils/publisher-composition'
  */
 export default publisherHandler(async (event) => {
   const subject = await requireSubject(event)
+  const siteId = await adminSite(event)
   const types = []
   for (const declaration of usePublisherRegistry().values()) {
-    const may = Object.fromEntries(await Promise.all(PUBLISHER_PERMISSION_ACTIONS.map(async action => [action, await allows(subject, declaration.type, action, null)] as const)))
+    const may = Object.fromEntries(await Promise.all(PUBLISHER_PERMISSION_ACTIONS.map(async action => [action, await allows(subject, siteId, declaration.type, action, null)] as const)))
     if (!Object.values(may).some(Boolean)) continue
     types.push({
       type: declaration.type,
