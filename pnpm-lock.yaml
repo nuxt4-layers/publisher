@@ -11,21 +11,9 @@ importers:
 
   .:
     dependencies:
-      mdast-util-from-markdown:
-        specifier: ^2.1.0
-        version: 2.1.0
-      mdast-util-gfm-strikethrough:
-        specifier: ^2.0.1
-        version: 2.0.1
-      mdast-util-gfm-table:
-        specifier: ^2.0.0
-        version: 2.0.0
-      micromark-extension-gfm-strikethrough:
-        specifier: ^2.1.0
-        version: 2.1.0
-      micromark-extension-gfm-table:
-        specifier: ^2.1.2
-        version: 2.1.2
+      '@nuxt4-layers/rich-text':
+        specifier: git+https://github.com/nuxt4-layers/rich-text.git#v1.0.0
+        version: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887
       zod:
         specifier: ^4.6.5
         version: 4.6.7
@@ -42,9 +30,6 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.3.3
         version: 4.3.3(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2))
-      '@types/mdast':
-        specifier: ^4.0.4
-        version: 4.0.4
       '@types/node':
         specifier: ^24.13.6
         version: 24.19.2
@@ -583,6 +568,11 @@ packages:
     peerDependencies:
       nuxt: ^4.6.2
       vite: ^8.3.4
+
+  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887':
+    resolution: {tarball: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887}
+    version: 1.0.0
+    engines: {node: '>=22'}
 
   '@nuxt4-layers/theme-manager@https://codeload.github.com/nuxt4-layers/theme-manager/tar.gz/934d1bd33e0731aafea0d454857dc8fbb756ccb2':
     resolution: {tarball: https://codeload.github.com/nuxt4-layers/theme-manager/tar.gz/934d1bd33e0731aafea0d454857dc8fbb756ccb2}
@@ -4271,6 +4261,17 @@ snapshots:
       - oxc-parser
       - rolldown
       - unplugin
+
+  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887':
+    dependencies:
+      mdast-util-from-markdown: 2.1.0
+      mdast-util-gfm-strikethrough: 2.0.1
+      mdast-util-gfm-table: 2.0.0
+      micromark-extension-gfm-strikethrough: 2.1.0
+      micromark-extension-gfm-table: 2.1.2
+      zod: 4.6.7
+    transitivePeerDependencies:
+      - supports-color
 
   '@nuxt4-layers/theme-manager@https://codeload.github.com/nuxt4-layers/theme-manager/tar.gz/934d1bd33e0731aafea0d454857dc8fbb756ccb2': {}
 

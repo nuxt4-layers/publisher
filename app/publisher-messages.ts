@@ -31,6 +31,8 @@ export const PUBLISHER_MESSAGES = {
   'publisher.reason.address-required': 'Enter a slug: documents of this kind need an address.',
   'publisher.reason.address-not-allowed': 'Documents of this kind have no address of their own.',
   'publisher.reason.date-required': 'Enter the date for the address.',
+  'publisher.reason.not-in-profile': 'This field does not allow some of the formatting used.',
+  'publisher.reason.more-than-one-paragraph': 'This field takes a single paragraph.',
   'publisher.reason.image-without-alt': 'Describe every image: alternative text is required.',
   'publisher.reason.image-not-asset': 'Images must come from the asset store (asset:…).',
   'publisher.reason.images-unavailable': 'Images cannot be used on this site.',

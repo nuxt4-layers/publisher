@@ -38,8 +38,6 @@ export {
   codeSchema,
   httpsUrlSchema,
   localeSchema,
-  MARKDOWN_MAX_LENGTH,
-  markdownSchema,
   safeTextSchema,
   SITE_ID_PATTERN,
   siteIdSchema,
@@ -63,7 +61,7 @@ export {
   buildPublisherRegistry,
   definePublisherDocumentType,
   FIELD_NAME_PATTERN,
-  FIELD_PATH_PATTERN,
+  PUBLISHER_MAX_RICH_TEXT_FIELDS,
   PUBLISHER_ORDERS,
   PUBLISHER_PERMISSION_ACTIONS,
   PUBLISHER_PERSONAL_DATA_RISK_FLOOR,
@@ -118,14 +116,6 @@ export {
   publisherActionRequestSchema,
   subjectSchema,
 } from './lifecycle'
-
-export {
-  ASSET_LINK_PATTERN,
-  DOC_LINK_PATTERN,
-  PUBLISHER_LINK_SCHEMES,
-  PUBLISHER_MARKDOWN_EXTENSIONS,
-  SITE_LINK_PATTERN,
-} from './markdown'
 
 export type {
   PublisherFeedFormat,

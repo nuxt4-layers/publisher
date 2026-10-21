@@ -1,10 +1,10 @@
+import { richTextSchema } from '@nuxt4-layers/rich-text'
 import { z } from 'zod'
 import {
   assetIdSchema,
   definePublisherDocumentType,
   httpsUrlSchema,
   identifierSchema,
-  markdownSchema,
   publisherConsentSchema,
   safeTextSchema,
   sitePathSchema,
@@ -18,7 +18,7 @@ import {
 
 /** A small block vocabulary for page-like types. A host's own may differ entirely. */
 export const exampleBlockSchema = z.discriminatedUnion('block', [
-  z.strictObject({ block: z.literal('text'), body: markdownSchema({ max: 20_000 }) }),
+  z.strictObject({ block: z.literal('text'), body: richTextSchema({ profile: 'document', max: 20_000 }) }),
   z.strictObject({ block: z.literal('image'), assetId: assetIdSchema, alt: safeTextSchema({ max: 250 }), caption: safeTextSchema({ min: 0, max: 300 }).optional() }),
   z.strictObject({ block: z.literal('quote'), text: safeTextSchema({ max: 1000 }), source: safeTextSchema({ min: 0, max: 200 }).optional() }),
   z.strictObject({ block: z.literal('call-to-action'), label: safeTextSchema({ max: 60 }), href: z.union([httpsUrlSchema, sitePathSchema]) }),
@@ -29,10 +29,9 @@ export const examplePageType = definePublisherDocumentType({
   type: 'page',
   label: { one: 'Page', many: 'Pages' },
   fields: z.strictObject({
-    body: markdownSchema(),
+    body: richTextSchema({ profile: 'document', max: 100_000 }),
     blocks: z.array(exampleBlockSchema).max(50).default([]),
   }),
-  markdownFields: ['body', 'blocks[].body'],
   address: { kind: 'path', base: '', pattern: 'slug' },
   listing: { listable: false, order: 'title-asc', filterable: [] },
   lifecycle: { approval: true, moderation: false, scheduling: true, risks: { publish: 'high' } },
@@ -43,11 +42,10 @@ export const exampleBlogPostType = definePublisherDocumentType({
   type: 'post',
   label: { one: 'Post', many: 'Posts' },
   fields: z.strictObject({
-    body: markdownSchema(),
+    body: richTextSchema({ profile: 'document', max: 100_000 }),
     tags: z.array(z.string().max(40).regex(/^[a-z0-9-]+$/)).max(10).default([]),
     image: z.strictObject({ assetId: assetIdSchema, alt: safeTextSchema({ max: 250 }) }).optional(),
   }),
-  markdownFields: ['body'],
   address: { kind: 'path', base: '/blog', pattern: 'date-slug' },
   listing: { listable: true, order: 'published-desc', filterable: ['tags'] },
   lifecycle: { approval: false, moderation: false, scheduling: true },
@@ -76,9 +74,8 @@ export const exampleReviewType = definePublisherDocumentType({
     reviewerId: identifierSchema,
     consent: publisherConsentSchema.optional(),
     rating: z.number().int().min(1).max(5),
-    body: markdownSchema({ max: 4000 }),
+    body: richTextSchema({ profile: 'block', max: 4000 }),
   }),
-  markdownFields: ['body'],
   address: { kind: 'none' },
   listing: { listable: true, order: 'published-desc', filterable: [] },
   lifecycle: { approval: false, moderation: true, scheduling: false },

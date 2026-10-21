@@ -41,7 +41,7 @@ import {
   inTransaction,
   loadDocument,
   loadVersion,
-  markdownValues,
+  richTextValues,
   namedBy,
   now,
   parseContent,
@@ -199,7 +199,7 @@ async function render(client: Client, row: DocumentRow, version: VersionRow, pre
   return publisherRenderedSchema.parse({
     document,
     links: { documents, assets },
-    markdown: declaration.markdownFields.flatMap(path => markdownValues(document.fields, path)),
+    markdown: declaration.richTextFields.flatMap(field => richTextValues(document.fields, field.path)),
     head: {
       title,
       description: document.summary,

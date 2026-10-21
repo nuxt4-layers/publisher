@@ -1,7 +1,8 @@
+import { richTextSchema } from '@nuxt4-layers/rich-text'
 import { z } from 'zod'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PublisherActionRequestInput, PublisherDocument, PublisherSubject } from '../shared/contracts'
-import { definePublisherDocumentType, markdownSchema, PUBLISHER_ACTIONS, PUBLISHER_TRANSITIONS } from '../shared/contracts'
+import { definePublisherDocumentType, PUBLISHER_ACTIONS, PUBLISHER_TRANSITIONS } from '../shared/contracts'
 import { providePublisherDocumentTypes } from '../server/utils/publisher-composition'
 import {
   createPublisherDocument,
@@ -98,8 +99,7 @@ describe.skipIf(!hasDatabase)('the lifecycle (PostgreSQL)', () => {
       const recipeType = definePublisherDocumentType({
         type: 'recipe',
         label: { one: 'Recipe', many: 'Recipes' },
-        fields: z.strictObject({ method: markdownSchema({ max: 5000 }), serves: z.number().int().min(1).max(20) }),
-        markdownFields: ['method'],
+        fields: z.strictObject({ method: richTextSchema({ profile: 'block', max: 5000 }), serves: z.number().int().min(1).max(20) }),
         address: { kind: 'path', base: '/recipes', pattern: 'slug' },
         listing: { listable: true, order: 'title-asc', filterable: [] },
       })

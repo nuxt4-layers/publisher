@@ -37,3 +37,9 @@ The layer was specified and tested before it was built, phase by phase on one pu
 - The rendered answer carries the type's Markdown sources in order (`markdown`), for the generic renderer; the routes module's option is `administration` (screens named `publisher-admin-*`).
 - Before tagging 1.0.0: sites from the start (§3.4), so tenants need no contract version 2; and editing left wholly to `content-editor` through the editor slot (§15.2), the layer building no form of its own.
 - Composition into `steve-r-lewis/platform-test-harness` follows, outside this repository.
+
+## Headless migration, step 1: adopt `rich-text` (done)
+
+- `@nuxt4-layers/rich-text` pinned at `v1.0.0`; the publisher's own dialect, `markdownSchema()` and `markdownFields` removed.
+- Formatted fields are found from each type's schema and checked against their profiles on every save, submission and import.
+- Green: `tests/rich-text.test.ts`, `tests/contracts.test.ts` "registration", and the browser tests. Next: [step 2](headless-migration.md).

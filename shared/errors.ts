@@ -50,6 +50,8 @@ export const PUBLISHER_CONTENT_PROBLEMS = [
   'address-required',
   'address-not-allowed',
   'date-required',
+  'not-in-profile',
+  'more-than-one-paragraph',
   'image-without-alt',
   'image-not-asset',
   'images-unavailable',

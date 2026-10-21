@@ -22,20 +22,6 @@ export function safeTextSchema({ min = 1, max }: { min?: number, max: number }) 
     .refine(value => codePoints(value) <= max, 'too-long')
 }
 
-/** The most Markdown one field may hold, in characters. */
-export const MARKDOWN_MAX_LENGTH = 100_000
-
-/**
- * A Markdown field's source, in the shared dialect (§6). Bounded, NFC, no
- * control characters but tab and newline. Its constructs are checked on save.
- */
-export function markdownSchema({ max = MARKDOWN_MAX_LENGTH }: { max?: number } = {}) {
-  return z.string()
-    .max(Math.min(max, MARKDOWN_MAX_LENGTH), 'too-long')
-    .overwrite(value => value.normalize('NFC').replace(/\r\n?/g, '\n'))
-    .refine(value => !/[\p{Cc}\p{Co}\p{Cs}]/u.test(value.replace(/[\t\n]/g, '')), 'unsafe-characters')
-}
-
 /** An `https` URL without credentials, at most 2,048 characters. */
 export const httpsUrlSchema = z.string().max(2048, 'too-long').refine((value) => {
   try {

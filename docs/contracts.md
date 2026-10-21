@@ -8,7 +8,7 @@ The publisher answers one question: **which version of which document is publish
 
 | Concern | Owner | How the publisher sees it |
 |---|---|---|
-| Drafts, versions, history, review, moderation, scheduling, addresses, redirects, links between documents, safe Markdown, listings, feeds | **Publisher** | §4 to §8 |
+| Drafts, versions, history, review, moderation, scheduling, addresses, redirects, links between documents, safe rich text, listings, feeds | **Publisher** | §4 to §8 |
 | What a document is: its fields, address rule, listing, lifecycle options | The host | A registered type declaration (§3) |
 | Site name, legal entity, contacts, SEO defaults | The host, from `nuxt4-layers/configuration` | The title-template port (§11); nothing else |
 | The site shell: header, footer, layout | The host | Never. The layer's pages render inside the host's layout |
@@ -35,14 +35,13 @@ Registered once at start-up with `providePublisherDocumentTypes(declarations)`. 
 |---|---|
 | `type` | The key: lower-case ASCII with `-`, 1 to 40 characters, starting with a letter (a segment of Configuration's keys), e.g. what a host calls its pages or its posts |
 | `label` | `{ one, many }`: safe text, up to 60 each, for administration and feed titles |
-| `fields` | A zod schema for the type's own content: a strict object (`z.strictObject`); every string, array and record within it bounded |
-| `markdownFields` | Paths to the fields holding Markdown in the dialect (§6): a field name, then `.name` into an object or `[].name` into each item of an array (`blocks[].body`). Each must lead to a string. Sanitised on render, checked on save, and their `doc:` links extracted (§7.3) |
+| `fields` | A zod schema for the type's own content: a strict object (`z.strictObject`); every string, array and record within it bounded. Formatted fields are `richTextSchema({ profile, max })` (§6); their `doc:` links are extracted (§7.3) |
 | `address` | `{ kind: 'none' }` for documents only ever embedded or listed; or `{ kind: 'path', base, pattern }`, `base` being `''` (the site's root) or a site path without a trailing `/`, and `pattern` `slug` (`{base}/{slug}`) or `date-slug` (`{base}/{YYYY}/{MM}/{DD}/{slug}`) |
 | `listing` | `{ listable, order, filterable }`: whether the type is listed and fed (§8); its default order (`published-desc`, `published-asc`, `title-asc`, `updated-desc`); top-level fields readers may filter on, each a bounded string, an enumeration or an array of either. Default: not listable |
 | `lifecycle` | `{ approval, moderation, scheduling, risks }`: whether publishing needs the approval port's consent (§5.2); whether submissions are moderated (§5.3; not with `approval`); whether `publishAt` and `unpublishAt` may be set (§5.4); and each permission's risk (§10), never below the floor. Default: all `false`, risks at the floor |
 | `personalData` | `null`, or `{ subjectField, consentField, retentionDays }` (§9): the field holding the person's identity identifier (a UUIDv7); the field holding their consent (`publisherConsentSchema`, optional in the schema so a draft may lack it); and how long superseded versions are kept, 30 to 2,190 days |
 
-A declaration is refused at start-up, failing closed, when it is invalid against the meta-schema; when its `fields` is not a strict object or holds an unbounded string, array or record; when a Markdown, filterable, subject or consent field does not exist or has the wrong shape; when it declares both `approval` and `moderation`; or when a risk is below the floor. Two declarations of one `type` are refused likewise. `definePublisherDocumentType` types a declaration without registering it.
+A declaration is refused at start-up, failing closed, when it is invalid against the meta-schema; when its `fields` is not a strict object or holds an unbounded string, array or record; when it has more than 20 formatted fields; when a filterable, subject or consent field does not exist or has the wrong shape; when it declares both `approval` and `moderation`; or when a risk is below the floor. Two declarations of one `type` are refused likewise. `definePublisherDocumentType` types a declaration without registering it.
 
 ### 3.2 Addresses
 
@@ -119,30 +118,36 @@ For types with `lifecycle.scheduling`, `publish` may carry `publishAt` (in the f
 
 Every save, restore and import is a new version, kept with who saved it, when, and the version it restored. `listPublisherHistory` lists them newest first; `getPublisherDocument({ version })` reads one; `restore` makes an earlier one the newest. Versions are kept for as long as the document, except superseded versions of personal-data types (§9) and erased documents.
 
-## 6. The Markdown dialect
+## 6. Rich text
 
-The shared dialect, agreed with `content-editor`, for every field a type names in `markdownFields`.
+Formatted fields use the platform's one format, [`@nuxt4-layers/rich-text`](https://github.com/nuxt4-layers/rich-text/blob/e0b07a2f0754ac0b96f3c11a42346f63690c8887/README.md) (ADR-0011), pinned at `v1.0.0`. Every other string is plain and never read as rich text.
 
-### 6.1 Constructs
+### 6.1 Profiles
 
-CommonMark, plus GitHub Flavored Markdown tables and strikethrough (`PUBLISHER_MARKDOWN_EXTENSIONS`). No other extension. **Raw HTML is never allowed**: block and inline HTML render as the literal text written.
+A field is formatted when its schema is `richTextSchema({ profile, max })`; the registry finds such fields from `fields` (`richTextFields`). A type has at most 20 (`PUBLISHER_MAX_RICH_TEXT_FIELDS`).
+
+| Profile | Allows |
+|---|---|
+| `inline` | One paragraph: bold, italic, links, line breaks |
+| `block` | Inline, plus headings, lists and quotes |
+| `document` | Everything: also strikethrough, code, tables, rules, `asset:` images and `doc:` links |
+
+Raw HTML is never markup: it is the text written. Only `https:`, `mailto:`, `doc:`, `asset:` and site-relative links are kept; any other destination is its text.
 
 ### 6.2 Links and images
 
-| Written | Means | Rendered |
-|---|---|---|
-| `[text](doc:<uuid>)` | A link to another document, by id | A link to its current address; its text alone when it is not published, or has no address |
-| `![alt](asset:<id>)` | An image from the host's asset store | An `<img>` at the address the asset port answers, with the `alt`; nothing when the asset is unknown |
-| `[text](https://…)`, `[text](mailto:…)`, or a destination starting with one `/` | An external, mail or site-relative link | A link (`PUBLISHER_LINK_SCHEMES`, `SITE_LINK_PATTERN`) |
-| Any other destination (`javascript:`, `data:`, `http:`, `//host`, …) | Nothing | Its text alone |
+| Written | Rendered |
+|---|---|
+| `[text](doc:<uuid>)` | A link to the document's current address; its text alone when it is not published, or has no address |
+| `![alt](asset:<id>)` | An `<img>` at the address the asset port answers, with the `alt`; nothing when the asset is unknown |
 
 ### 6.3 Rendering
 
-The parser (`markdown/dialect.ts`) answers a tree of the dialect's own nodes only, and `PublisherMarkdown` renders that tree to VNodes. Nothing reaches `v-html`, `innerHTML` or the DOM as markup anywhere in the layer (`tests/presentation.test.ts`). Document links render with the addresses the server resolved for that answer (`links`).
+`PublisherMarkdown` parses a source with `parseRichText` for its field's profile and renders the safe tree to VNodes. Nothing reaches `v-html`, `innerHTML` or the DOM as markup anywhere in the layer (`tests/presentation.test.ts`). Document links render with the addresses the server resolved for that answer (`links`).
 
 ### 6.4 Checks on save
 
-Every Markdown field of a version is checked on create, save, restore and import: an image without alt text (empty or only spaces) is refused (`validation-failed`, `image-without-alt`), an image from anywhere but `asset:` likewise (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document is allowed and renders as text until it is published.
+Every formatted field of a version is normalised (NFC, `\n` line ends) and checked with `checkRichText` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
 
 ## 7. Addresses and links
 
@@ -299,7 +304,7 @@ Components, composables and pages live in `app/` and reach the server only throu
 
 - One named catch-all route, `publisher-document`, registered by `modules/publisher-routes.ts` (`publisher: { document: { enabled } }`), renders whatever `resolve` answers: a document through its type's renderer, a 301 to a redirect, or the designed not-found component (`PublisherNotFound`) with status 404. A host's own routes take precedence over it.
 - The route sets the title (through the title template), description (the summary), canonical URL, `og:title`, `og:description`, `og:type` (`article`), `og:url`, `article:published_time` and `article:modified_time`, and `noindex` on a preview, which is marked as one.
-- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each Markdown field in order, from the rendered answer's `markdown`). `PublisherMarkdown` renders Markdown safely anywhere. Authors are named only through the person-name slot.
+- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each formatted field in order, from the rendered answer's `markdown`). `PublisherMarkdown` renders Markdown safely anywhere. Authors are named only through the person-name slot.
 
 ### 15.2 Administration
 
@@ -329,5 +334,5 @@ Contract version 1 (`PUBLISHER_CONTRACT_VERSION`), frozen for 1.x once 1.0.0 is 
 8. **Backlinks by acknowledgement.** Unpublishing a linked document is allowed, but only once the editor has seen how many documents link to it.
 9. **The access port is type-wide.** The publisher asks about a permission, a type and optionally a document; which group or tenant decides is the host's mapping to Authorisation.
 10. **Sites from the start.** Every document belongs to a site (§3.4), so a host serving several tenants composes the layer once, and a host with one site answers a constant. Adding a site scope after 1.0.0 would have narrowed every query and port, a contract version 2.
-11. **Markdown to a safe tree.** The parser answers the dialect's own nodes, rendered to VNodes; there is no sanitiser to get wrong because markup never reaches the DOM.
+11. **Rich text to a safe tree.** `rich-text`'s parser answers its own nodes, rendered to VNodes; there is no sanitiser to get wrong because markup never reaches the DOM.
 12. **No document type in the layer.** Not even for its own tests or playground: both register types defined in `tests/support/types.ts`.

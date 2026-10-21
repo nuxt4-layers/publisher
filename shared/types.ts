@@ -1,3 +1,4 @@
+import { richTextFields, type RichTextFieldPath } from '@nuxt4-layers/rich-text'
 import { z } from 'zod'
 import { safeTextSchema, sitePathSchema } from './values'
 
@@ -42,11 +43,8 @@ export const typeKeySchema = z.string().regex(TYPE_KEY_PATTERN, 'not-a-type')
 /** A field's name in a type's `fields`. */
 export const FIELD_NAME_PATTERN = /^[a-z][A-Za-z0-9]{0,63}$/
 
-/**
- * A path to a Markdown field: a field name, then `.name` into an object or
- * `[].name` into each item of an array (`intro`, `blocks[].body`).
- */
-export const FIELD_PATH_PATTERN = /^[a-z][A-Za-z0-9]{0,63}(?:(?:\[\])?\.[a-z][A-Za-z0-9]{0,63}){0,4}$/
+/** The most formatted fields (`richTextSchema`) one type may have. */
+export const PUBLISHER_MAX_RICH_TEXT_FIELDS = 20
 
 /** How listings of a type are ordered by default. */
 export const PUBLISHER_ORDERS = ['published-desc', 'published-asc', 'title-asc', 'updated-desc'] as const
@@ -79,7 +77,6 @@ export const publisherTypeDeclarationSchema = z.strictObject({
   type: typeKeySchema,
   label: z.strictObject({ one: safeTextSchema({ max: 60 }), many: safeTextSchema({ max: 60 }) }),
   fields: z.custom<z.ZodObject>(value => value instanceof z.ZodObject, 'not-a-strict-object'),
-  markdownFields: z.array(z.string().regex(FIELD_PATH_PATTERN)).max(20).default([]),
   address: addressRuleSchema,
   listing: z.strictObject({
     listable: z.boolean(),
@@ -112,6 +109,8 @@ export type PublisherTypeDeclaration = z.output<typeof publisherTypeDeclarationS
   readonly risks: Readonly<Record<PublisherPermissionAction, PublisherRisk>>
   /** The type's fields as JSON Schema, for the generic edit form. */
   readonly jsonSchema: Readonly<Record<string, unknown>>
+  /** Its formatted fields, found from `fields` (`richTextSchema`), in order. */
+  readonly richTextFields: readonly RichTextFieldPath[]
 }
 
 export type PublisherRegistry = ReadonlyMap<string, PublisherTypeDeclaration>
@@ -125,7 +124,8 @@ export interface PublisherEditorType {
   type: string
   label: { one: string, many: string }
   address: PublisherAddressRule
-  markdownFields: readonly string[]
+  /** Its formatted fields: each path, profile and maximum length. Every other string is plain. */
+  richTextFields: readonly RichTextFieldPath[]
   /** The type's fields as JSON Schema (input). */
   schema: Readonly<Record<string, unknown>>
 }
@@ -139,9 +139,9 @@ export function definePublisherDocumentType<const Declaration extends PublisherT
  * Builds the registry, refusing at start-up anything a page would
  * otherwise find out about later: an invalid declaration against the
  * meta-schema, a type registered twice, a `fields` schema that is not a
- * strict object or holds an unbounded string or array, a Markdown,
- * filterable, subject or consent field the schema does not have (or of the
- * wrong shape), `approval` with `moderation`, and a risk below the floor.
+ * strict object, holds an unbounded string or array or too many
+ * formatted fields, a filterable, subject or consent field the schema
+ * does not have (or of the wrong shape), `approval` with `moderation`, and a risk below the floor.
  */
 export function buildPublisherRegistry(declarations: readonly PublisherTypeDeclarationInput[]): PublisherRegistry {
   const registry = new Map<string, PublisherTypeDeclaration>()
@@ -163,10 +163,8 @@ export function buildPublisherRegistry(declarations: readonly PublisherTypeDecla
     const fail = (what: string) => {
       throw new TypeError(`Document type '${declaration.type}' ${what}.`)
     }
-    for (const path of declaration.markdownFields) {
-      const leaves = resolvePath(jsonSchema, jsonSchema, path)
-      if (leaves.length === 0 || !leaves.every(leaf => isType(leaf, 'string') && leaf.enum === undefined && leaf.const === undefined)) fail(`names Markdown field '${path}', which is not a free-text string field`)
-    }
+    const formatted = richTextFields(declaration.fields)
+    if (formatted.length > PUBLISHER_MAX_RICH_TEXT_FIELDS) fail(`has more than ${PUBLISHER_MAX_RICH_TEXT_FIELDS} formatted fields`)
     for (const field of declaration.listing.filterable) {
       const node = topField(jsonSchema, field)
       if (!node || !(isFilterable(node) || (isType(node, 'array') && isFilterable(deref(jsonSchema, node.items as JsonNode | undefined))))) fail(`names filterable field '${field}', which is not a string, enumeration or array of either`)
@@ -187,7 +185,7 @@ export function buildPublisherRegistry(declarations: readonly PublisherTypeDecla
       risks[action] = declared ?? floor[action]
     }
     const { $schema: _, ...schema } = jsonSchema
-    registry.set(declaration.type, Object.freeze({ ...declaration, risks: Object.freeze(risks), jsonSchema: Object.freeze(schema) }))
+    registry.set(declaration.type, Object.freeze({ ...declaration, risks: Object.freeze(risks), jsonSchema: Object.freeze(schema), richTextFields: Object.freeze(formatted.map(field => Object.freeze(field))) }))
   }
   return registry
 }
@@ -222,21 +220,6 @@ function topField(root: JsonNode, field: string): JsonNode | undefined {
   const node = properties && Object.hasOwn(properties, field) ? properties[field] : undefined
   // A field may be optional or nullable: take its non-null alternative.
   return alternatives(root, node).find(option => !isType(option, 'null'))
-}
-
-/** The schemas a field path leads to, across every alternative of a union. */
-function resolvePath(root: JsonNode, start: JsonNode, path: string): JsonNode[] {
-  let nodes = [start]
-  for (const segment of path.split('.')) {
-    const array = segment.endsWith('[]')
-    const name = array ? segment.slice(0, -2) : segment
-    nodes = nodes.flatMap(node => alternatives(root, node)).flatMap((node) => {
-      const properties = node.properties as Record<string, JsonNode> | undefined
-      return properties && Object.hasOwn(properties, name) ? alternatives(root, properties[name]) : []
-    }).filter(node => !isType(node, 'null'))
-    if (array) nodes = nodes.filter(node => isType(node, 'array')).flatMap(node => alternatives(root, node.items as JsonNode))
-  }
-  return nodes
 }
 
 /** A pattern with no unbounded quantifier matches only bounded strings. */

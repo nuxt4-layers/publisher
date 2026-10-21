@@ -22,7 +22,7 @@ export default publisherHandler(async (event) => {
       listing: declaration.listing,
       lifecycle: { approval: declaration.lifecycle.approval, moderation: declaration.lifecycle.moderation, scheduling: declaration.lifecycle.scheduling },
       personalData: declaration.personalData !== null,
-      markdownFields: declaration.markdownFields,
+      richTextFields: declaration.richTextFields,
       risks: declaration.risks,
       schema: declaration.jsonSchema,
       may,

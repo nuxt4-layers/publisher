@@ -1,9 +1,9 @@
+import { richTextSchema } from '@nuxt4-layers/rich-text'
 import { z } from 'zod'
 import {
   assetIdSchema,
   definePublisherDocumentType,
   identifierSchema,
-  markdownSchema,
   publisherConsentSchema,
   safeTextSchema,
 } from '../../shared/contracts'
@@ -13,19 +13,18 @@ import {
  * they prove that any type is a registration, never a change to the layer.
  */
 
-/** Page-like: blocks, Markdown, an address at the site's root, review before publishing. */
+/** Page-like: blocks, rich text, an address at the site's root, review before publishing. */
 export const landingType = definePublisherDocumentType({
   type: 'landing',
   label: { one: 'Landing', many: 'Landings' },
   fields: z.strictObject({
-    intro: markdownSchema({ max: 10_000 }),
+    intro: richTextSchema({ profile: 'block', max: 10_000 }),
     section: z.enum(['products', 'company', 'support']),
     blocks: z.array(z.discriminatedUnion('block', [
-      z.strictObject({ block: z.literal('prose'), body: markdownSchema({ max: 10_000 }) }),
+      z.strictObject({ block: z.literal('prose'), body: richTextSchema({ profile: 'document', max: 10_000 }) }),
       z.strictObject({ block: z.literal('figure'), assetId: assetIdSchema, alt: safeTextSchema({ max: 250 }) }),
     ])).max(20),
   }),
-  markdownFields: ['intro', 'blocks[].body'],
   address: { kind: 'path', base: '', pattern: 'slug' },
   listing: { listable: true, order: 'title-asc', filterable: ['section'] },
   lifecycle: { approval: true, moderation: false, scheduling: true, risks: { publish: 'high' } },
@@ -39,9 +38,8 @@ export const appraisalType = definePublisherDocumentType({
     authorId: identifierSchema,
     consent: publisherConsentSchema.optional(),
     stars: z.number().int().min(1).max(5),
-    words: markdownSchema({ max: 2000 }),
+    words: richTextSchema({ profile: 'block', max: 2000 }),
   }),
-  markdownFields: ['words'],
   address: { kind: 'none' },
   listing: { listable: true, order: 'published-desc', filterable: [] },
   lifecycle: { approval: false, moderation: true, scheduling: false },
@@ -53,10 +51,9 @@ export const bulletinType = definePublisherDocumentType({
   type: 'bulletin',
   label: { one: 'Bulletin', many: 'Bulletins' },
   fields: z.strictObject({
-    body: markdownSchema({ max: 10_000 }),
+    body: richTextSchema({ profile: 'document', max: 10_000 }),
     topic: z.string().max(40).regex(/^[a-z-]+$/),
   }),
-  markdownFields: ['body'],
   address: { kind: 'path', base: '/bulletins', pattern: 'date-slug' },
   listing: { listable: true, order: 'published-desc', filterable: ['topic'] },
   lifecycle: { approval: false, moderation: false, scheduling: true },
@@ -64,9 +61,9 @@ export const bulletinType = definePublisherDocumentType({
 
 export const TEST_TYPES = [landingType, appraisalType, bulletinType] as const
 
-/** Content for a landing. */
-export function landing(slug: string, title = 'Landing', intro = 'Welcome.') {
-  return { locale: 'en-GB', title, summary: `${title} summary`, slug, fields: { intro, section: 'products', blocks: [{ block: 'prose', body: 'More.' }] } }
+/** Content for a landing: `intro` is a block field, `body` its first prose block's document field. */
+export function landing(slug: string, title = 'Landing', intro = 'Welcome.', body = 'More.') {
+  return { locale: 'en-GB', title, summary: `${title} summary`, slug, fields: { intro, section: 'products', blocks: [{ block: 'prose', body }] } }
 }
 
 /** Content for an appraisal by a person, with or without recorded consent. */

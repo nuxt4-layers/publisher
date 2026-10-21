@@ -10,7 +10,7 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 
 - The lifecycle of documents of the types a host registers, and every version of each.
 - The addresses of published documents, the redirects from their old addresses and the links between documents, by id.
-- The shared Markdown dialect, agreed with `content-editor`, and rendering it safely.
+- Checking every formatted field against its profile on save, using the shared `rich-text` format (ADR-0011), and rendering it safely.
 - Listings, RSS and Atom feeds, and sitemap entries.
 
 ## Never owns
@@ -29,7 +29,7 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 
 | Direction | Interface | Purpose |
 |---|---|---|
-| Consumes from the host | `providePublisherDocumentTypes` | The document types: fields, Markdown fields, address, listing, lifecycle, personal data |
+| Consumes from the host | `providePublisherDocumentTypes` | The document types: fields (formatted ones by profile), address, listing, lifecycle, personal data |
 | Consumes from the host | Database, subject resolver, access decision, approval, clock, event sink, asset resolver, title template | Storage under ADR-0002; the signed-in subject; permissions; consent to publish; time; events; images; titles |
 | Consumes from the host (app side) | Renderer per type, editor, person name | Drawing documents, editing content, naming authors |
 | Provides to pages | `usePublisher()`, the `publisher-document` catch-all route, `PublisherMarkdown`, administration pages | Rendering, metadata, editing and moderation |

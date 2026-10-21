@@ -54,7 +54,7 @@ const nullable = (value: string) => value.trim() === '' ? null : value
         :schema="schema"
         :label="String(name)"
         :path="String(name)"
-        :markdown-fields="type.markdownFields"
+        :markdown-fields="type.richTextFields.map(field => field.path)"
         :required="required.includes(String(name))"
         :model-value="content.fields[name]"
         @update:model-value="value => setField(String(name), value)"

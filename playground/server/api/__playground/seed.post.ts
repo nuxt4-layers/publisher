@@ -32,7 +32,7 @@ export default defineEventHandler(async () => {
     subject: editor,
     correlationId: id(),
     type: 'landing',
-    content: landing('welcome', 'Welcome', `Read [the news](doc:${news.id}).\n\n![A red door](asset:door-1)\n\n<script>document.title = 'owned'</script>`),
+    content: landing('welcome', 'Welcome', 'Welcome.', `Read [the news](doc:${news.id}).\n\n![A red door](asset:door-1)\n\n<script>document.title = 'owned'</script>`),
   })
   await act(welcome.id, { action: 'submit', expectedVersion: 1 })
   world.approve(world.approvalFor(welcome.id)!, bob)

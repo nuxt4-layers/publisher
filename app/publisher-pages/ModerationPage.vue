@@ -12,9 +12,10 @@ const { data: types } = await useAsyncData('publisher:admin:types', () => publis
 const { data: queue, error, refresh } = await useAsyncData('publisher:admin:moderation', () => publisher.moderation())
 const access = computed(() => error.value ? (publisherErrorOf(error.value)?.code ?? 'unavailable') : null)
 const done = ref<string | null>(null)
-const markdownOf = (document: PublisherDocument) => {
-  const paths = types.value?.find(type => type.type === document.type)?.markdownFields ?? []
-  return paths.filter(path => !path.includes('.')).map(path => document.fields[path]).filter((value): value is string => typeof value === 'string')
+const formattedOf = (document: PublisherDocument) => {
+  const fields = types.value?.find(type => type.type === document.type)?.richTextFields ?? []
+  return fields.filter(field => !field.path.includes('.') && !field.path.includes('[]'))
+    .flatMap(field => typeof document.fields[field.path] === 'string' ? [{ source: document.fields[field.path] as string, profile: field.profile }] : [])
 }
 async function moderate(document: PublisherDocument, outcome: 'accept' | 'reject') {
   done.value = null
@@ -40,7 +41,7 @@ async function moderate(document: PublisherDocument, outcome: 'accept' | 'reject
         <PublisherAlert v-if="action.error.value" tone="error">{{ action.error.value }}</PublisherAlert>
         <article v-for="document in queue?.documents ?? []" :key="document.id" :aria-labelledby="`publisher-submission-${document.id}`" :class="[publisherClasses.section, publisherClasses.stack]">
           <h2 :id="`publisher-submission-${document.id}`" :class="publisherClasses.sectionTitle">{{ document.title }}</h2>
-          <PublisherMarkdown v-for="(source, index) in markdownOf(document)" :key="index" :source="source" />
+          <PublisherMarkdown v-for="(field, index) in formattedOf(document)" :key="index" :source="field.source" :profile="field.profile" />
           <div :class="publisherClasses.row">
             <button type="button" :class="publisherClasses.primaryButton" :disabled="action.disabled.value" @click="moderate(document, 'accept')">{{ text('publisher.action.accept') }}</button>
             <button type="button" :class="publisherClasses.dangerButton" :disabled="action.disabled.value" @click="moderate(document, 'reject')">{{ text('publisher.action.reject') }}</button>
