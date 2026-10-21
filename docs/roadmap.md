@@ -43,3 +43,8 @@ The layer was specified and tested before it was built, phase by phase on one pu
 - `@nuxt4-layers/rich-text` pinned at `v1.0.0`; the publisher's own dialect, `markdownSchema()` and `markdownFields` removed.
 - Formatted fields are found from each type's schema and checked against their profiles on every save, submission and import.
 - Green: `tests/rich-text.test.ts`, `tests/contracts.test.ts` "registration", and the browser tests. Next: [step 2](headless-migration.md).
+
+## Headless migration, step 2: safe trees in answers (done)
+
+- A rendered answer carries `richText`, each formatted field's `{ path, profile, nodes }`, in place of its sources (`markdown`).
+- Green: `tests/rich-text.test.ts` "answers formatted fields as safe trees", and the browser tests.

@@ -20,7 +20,7 @@ Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blo
 | Formatted fields | `markdownSchema()` and `markdownFields` in each type | **Changes:** fields use `rich-text`'s schema with a **profile** (inline, block or document); the publisher finds them from the schema |
 | Plain fields | Strings in each type's schema | **Stays:** plain strings with a length limit, never `rich-text` |
 | Checks on save | The publisher's own | **Changes:** `rich-text`'s checks, against each field's profile |
-| `PublisherRendered.markdown` | `string[]` | **Changes:** `{ path, nodes }[]`: `rich-text`'s safe tree for each field |
+| `PublisherRendered.markdown` | `string[]` | **Changes:** `richText`, `{ path, profile, nodes }[]`: `rich-text`'s safe tree for each formatted field |
 | Screens: catch-all route, administration, moderation | `app/publisher-pages/`, `modules/publisher-routes.ts` | **Go** to the host, or a kit |
 | Components, renderer | `app/components/`, `publisher-markdown-render.ts` | **Go:** drawing safe trees is `ui`'s; editing is `content-editor`'s |
 | Wording, class map, pairings | `publisher-messages.ts`, `publisher-classes.ts`, `publisher-pairings.ts` | **Go** to `ui` or the host |
@@ -37,7 +37,7 @@ Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blo
 Each step is a commit: its contract and tests first, then the code.
 
 1. **Adopt `rich-text`.** Depend on it; replace `markdownSchema()`, `markdownFields` and the dialect's constants with its schema and profiles; check every save against each formatted field's profile; remove `markdown/` and `shared/markdown.ts`. Tests: a formatted field refuses anything beyond its profile, by any route, including import; a plain field is never read as rich text. **Done.**
-2. **Safe trees in answers.** Change `PublisherRendered.markdown` to `{ path, nodes }[]`, using `rich-text`'s tree, for formatted fields only. Tests: nothing unsafe ever appears in an answer.
+2. **Safe trees in answers.** Replace `PublisherRendered.markdown` with `richText`, `{ path, profile, nodes }[]`, using `rich-text`'s tree, for formatted fields only. Tests: nothing unsafe ever appears in an answer. **Done.**
 3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots.
 4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use.
 5. **Switchable API.** Add `publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both.

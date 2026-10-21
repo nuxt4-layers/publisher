@@ -1,3 +1,4 @@
+import { parseRichText } from '@nuxt4-layers/rich-text'
 import type {
   PublisherBacklink,
   PublisherBundle,
@@ -41,7 +42,7 @@ import {
   inTransaction,
   loadDocument,
   loadVersion,
-  richTextValues,
+  richTextEntries,
   namedBy,
   now,
   parseContent,
@@ -199,7 +200,8 @@ async function render(client: Client, row: DocumentRow, version: VersionRow, pre
   return publisherRenderedSchema.parse({
     document,
     links: { documents, assets },
-    markdown: declaration.richTextFields.flatMap(field => richTextValues(document.fields, field.path)),
+    richText: declaration.richTextFields.flatMap(field => richTextEntries(document.fields, field.path)
+      .map(({ path, value }) => ({ path, profile: field.profile, nodes: parseRichText(value, field.profile) }))),
     head: {
       title,
       description: document.summary,

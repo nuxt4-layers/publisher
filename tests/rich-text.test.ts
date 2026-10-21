@@ -1,4 +1,4 @@
-import { parseRichText } from '@nuxt4-layers/rich-text'
+import { parseRichText, richTextTreeSchema } from '@nuxt4-layers/rich-text'
 import { h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import {
   getPublishedDocument,
   importPublisherContent,
   receivePublisherSubmission,
+  resolvePublisherPath,
   transitionPublisherDocument,
 } from '../server/utils/publisher-server'
 import { hasDatabase, requireDatabaseInCi } from './support/database'
@@ -135,6 +136,25 @@ describe.skipIf(!hasDatabase)('formatted fields, checked against their profiles 
     await transitionPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), documentId: document.id, request: { action: 'publish', expectedVersion: 1 } })
     const rendered = await getPublishedDocument({ siteId: SITE, documentId: document.id })
     expect(rendered!.document.title).toBe('**Not bold**')
-    expect(rendered!.markdown).toEqual(['Caf\u00e9\nmenu'])
+    expect(rendered!.richText).toEqual([{ path: 'body', profile: 'document', nodes: [{ kind: 'paragraph', children: [{ kind: 'text', value: 'Caf\u00e9\nmenu' }] }] }])
+  })
+
+  it('answers formatted fields as safe trees, each at its own path, with nothing unsafe in any answer', async () => {
+    const hostile = '<script>alert(1)</script>\n\n[x](javascript:alert(1)) [y](data:text/html,1) <img src=x onerror="alert(1)">'
+    const page = await createPublisherDocument({ siteId: SITE, subject: editor, correlationId: id(), type: 'landing', content: { ...landing('trees', 'Trees', `**Bold** ${hostile}`), fields: { intro: `**Bold** ${hostile}`, section: 'products', blocks: [{ block: 'prose', body: 'One.' }, { block: 'prose', body: hostile }] } } })
+    const answers = [
+      await getPublishedDocument({ siteId: SITE, documentId: page.id, preview: true, viewer: editor }),
+      await resolvePublisherPath({ siteId: SITE, path: '/trees', preview: true, viewer: editor }),
+    ]
+    const rendered = answers[0]!
+    expect(rendered.richText.map(entry => [entry.path, entry.profile])).toEqual([['intro', 'block'], ['blocks[0].body', 'document'], ['blocks[1].body', 'document']])
+    expect(rendered.richText[0]!.nodes[0]).toMatchObject({ kind: 'paragraph', children: expect.arrayContaining([expect.objectContaining({ kind: 'strong' })]) })
+    for (const answer of answers) {
+      const entries = answer && 'rendered' in answer ? answer.rendered.richText : (answer as typeof rendered).richText
+      for (const entry of entries) expect(richTextTreeSchema.safeParse(entry.nodes).success, entry.path).toBe(true)
+      const json = JSON.stringify(entries)
+      expect(json).not.toMatch(/"kind":"(?:html|raw)"|"href":"(?:javascript|data|vbscript):/i)
+      expect(json).toContain('<script>alert(1)</script>')
+    }
   })
 })

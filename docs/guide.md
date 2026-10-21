@@ -156,7 +156,7 @@ if (data.value?.kind === 'redirect') await navigateTo(data.value.to, { redirectC
     <article v-if="data?.kind === 'document'">
       <h1>{{ data.rendered.document.title }}</h1>
       <!-- Each rich-text field arrives as a safe tree: draw it with ui's renderer -->
-      <UiRichText v-for="field in data.rendered.markdown" :key="field.path" :nodes="field.nodes" :links="data.rendered.links" />
+      <UiRichText v-for="field in data.rendered.richText" :key="field.path" :nodes="field.nodes" :links="data.rendered.links" />
     </article>
     <NotFound v-else />
   </main>

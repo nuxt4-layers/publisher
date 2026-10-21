@@ -145,7 +145,11 @@ Raw HTML is never markup: it is the text written. Only `https:`, `mailto:`, `doc
 
 `PublisherMarkdown` parses a source with `parseRichText` for its field's profile and renders the safe tree to VNodes. Nothing reaches `v-html`, `innerHTML` or the DOM as markup anywhere in the layer (`tests/presentation.test.ts`). Document links render with the addresses the server resolved for that answer (`links`).
 
-### 6.4 Checks on save
+### 6.4 In answers
+
+A rendered answer carries each formatted field as `richText`: `{ path, profile, nodes }`, in the order the type declares them, `path` naming the value in `fields` (`blocks[0].body`) and `nodes` its safe tree, checked against `richTextTreeSchema`. Never HTML.
+
+### 6.5 Checks on save
 
 Every formatted field of a version is normalised (NFC, `\n` line ends) and checked with `checkRichText` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
 
@@ -304,7 +308,7 @@ Components, composables and pages live in `app/` and reach the server only throu
 
 - One named catch-all route, `publisher-document`, registered by `modules/publisher-routes.ts` (`publisher: { document: { enabled } }`), renders whatever `resolve` answers: a document through its type's renderer, a 301 to a redirect, or the designed not-found component (`PublisherNotFound`) with status 404. A host's own routes take precedence over it.
 - The route sets the title (through the title template), description (the summary), canonical URL, `og:title`, `og:description`, `og:type` (`article`), `og:url`, `article:published_time` and `article:modified_time`, and `noindex` on a preview, which is marked as one.
-- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each formatted field in order, from the rendered answer's `markdown`). `PublisherMarkdown` renders Markdown safely anywhere. Authors are named only through the person-name slot.
+- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each formatted field's safe tree, from the rendered answer's `richText`). `PublisherMarkdown` draws a safe tree, or a source for a profile, safely anywhere. Authors are named only through the person-name slot.
 
 ### 15.2 Administration
 
