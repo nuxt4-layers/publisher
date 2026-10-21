@@ -11,6 +11,7 @@ const routes = usePublisherRoutes()
 const publisher = usePublisher()
 const action = usePublisherAction()
 const route = useRoute()
+const editor = usePublisherComponents().editor()
 const documentId = String(route.params.documentId ?? '')
 
 const { data: types } = await useAsyncData('publisher:admin:types', () => publisher.types().catch(() => []))
@@ -45,7 +46,7 @@ const offered = computed(() => {
   const current = status.value
   if (!current || !type.value) return actions
   const pending = document.value?.moderation === 'pending'
-  if (may.value.edit && current !== 'archived') actions.push('save')
+  if (editor && may.value.edit && current !== 'archived') actions.push('save')
   if (may.value.edit && type.value.lifecycle.approval && (current === 'draft' || (current === 'published' && newer.value && document.value?.reviewVersion !== document.value?.latestVersion))) actions.push('submit')
   if (may.value.edit && (current === 'in-review' || current === 'scheduled') && !pending) actions.push('withdraw')
   if (may.value.publish && !pending && (current === 'draft' || current === 'in-review' || (current === 'published' && newer.value))) actions.push('publish')
@@ -120,8 +121,9 @@ const formatTime = (iso: string) => new Date(iso).toISOString().replace('T', ' '
         <PublisherAlert v-if="done" tone="success">{{ done }}</PublisherAlert>
         <PublisherAlert v-if="action.error.value" tone="error">{{ action.error.value }}</PublisherAlert>
 
+        <PublisherAlert v-if="!editor" tone="info">{{ text('publisher.admin.read-only') }}</PublisherAlert>
         <form v-if="type" :class="publisherClasses.stack" @submit.prevent="run('save')">
-          <PublisherContentForm :key="formKey" v-model="content" :type="type" id-prefix="publisher-edit" />
+          <component :is="editor" v-if="editor && offered.includes('save')" :id="`publisher-edit-${document.id}`" :key="formKey" v-model="content" :type="type" />
           <div v-if="type.lifecycle.scheduling && offered.includes('publish')" :class="publisherClasses.row">
             <div>
               <label for="publisher-publish-at" :class="publisherClasses.label">{{ text('publisher.admin.publish-at') }}</label>

@@ -4,6 +4,7 @@ import type { PublisherContentInput } from '../../shared/contracts'
 /** Documents by type, with search, and a new document from the type's own form. */
 const text = usePublisherText()
 const routes = usePublisherRoutes()
+const editor = usePublisherComponents().editor()
 const publisher = usePublisher()
 const action = usePublisherAction()
 const route = useRoute()
@@ -60,11 +61,11 @@ async function create() {
             <input id="publisher-search" v-model="search" type="search" :class="publisherClasses.input">
           </div>
         </div>
-        <div v-if="type?.may.edit && !creating" :class="publisherClasses.row">
+        <div v-if="editor && type?.may.edit && !creating" :class="publisherClasses.row">
           <button type="button" :class="publisherClasses.primaryButton" :disabled="action.disabled.value" @click="startCreating">{{ text('publisher.admin.new', { label: type.label.one }) }}</button>
         </div>
-        <form v-if="type && creating" :class="publisherClasses.stack" @submit.prevent="create">
-          <PublisherContentForm v-model="draft" :type="type" id-prefix="publisher-new" />
+        <form v-if="editor && type && creating" :class="publisherClasses.stack" @submit.prevent="create">
+          <component :is="editor" :id="`publisher-new-${type.type}`" v-model="draft" :type="type" />
           <PublisherAlert v-if="action.error.value" tone="error">{{ action.error.value }}</PublisherAlert>
           <div :class="publisherClasses.row">
             <button type="submit" :class="publisherClasses.primaryButton" :disabled="action.disabled.value">{{ text('publisher.action.create') }}</button>

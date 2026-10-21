@@ -4,7 +4,7 @@ Nuxt 4 foundation layer for publishing: which version of which document is publi
 
 A platform foundation layer. It reaches Authorisation, the approvals process, the asset store, the title template, the editor and people's names only through ports the host supplies, and never imports another layer.
 
-**Status:** 1.0.0, contract version 1 ([contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API, the public catch-all route and the administration screens, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
+**Status:** 1.0.0, contract version 1 ([contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API, the public catch-all route and the administration screens, with every document on a site and editing left to `content-editor` through the editor slot, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
 
 ## Owns
 

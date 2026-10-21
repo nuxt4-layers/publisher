@@ -172,7 +172,10 @@ test.describe('administration pages', () => {
     await withoutEditor(context)
     await page.goto(`/publisher/documents/${scenario.draft}`)
     await expect(page.getByRole('heading', { level: 1, name: 'Unfinished' })).toBeVisible()
-    await expect(page.getByRole('textbox')).toHaveCount(0)
+    // Only the schedule's times remain to fill in: they are the lifecycle's, not content.
+    await expect(page.getByRole('textbox')).toHaveCount(2)
+    await expect(page.getByLabel('Title')).toHaveCount(0)
+    await expect(page.locator('textarea')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'History' })).toBeVisible()
