@@ -1,12 +1,12 @@
 # Headless Migration Plan
 
-> **In short:** keep every service, remove every screen. The publisher is not yet released, so it becomes headless before 1.0.0 with no deprecation period.
+> **In short:** keep every service, remove every screen, and hand rich text to the shared `rich-text` library. The publisher is not yet released, so this all happens before 1.0.0, with no deprecation period.
 
-Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/725b2ffdc2f8101420bf301630f98fff01f68bc2/docs/decisions/ADR-0009-headless-capability-layers.md). The result is described in the [guide](guide.md).
+Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0009-headless-capability-layers.md) (headless layers) and [ADR-0011](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md) (shared rich text). The result is described in the [guide](guide.md).
 
 ## Starting point
 
-`master` holds the untagged 1.0.0 candidate: every service, every document on a site, and screens with an editor slot.
+`master` holds the untagged 1.0.0 candidate: every service, every document on a site, its own Markdown dialect, and screens with an editor slot.
 
 ## What stays, changes and goes
 
@@ -16,31 +16,39 @@ Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blo
 | Sites | Every document on a site | **Stays** |
 | HTTP API `/api/publisher/*` | Always on | **Stays**, with `publisher: { api: { enabled } }` to switch it off |
 | `usePublisher()` | Data client, plus screen helpers | **Stays** as a typed client only |
-| Markdown | Source strings; rendered to VNodes by the layer | **Changes:** answers carry each field's **safe tree**; the parser is a public `./markdown` export |
-| `PublisherRendered.markdown` | `string[]` | **Changes:** `{ path, nodes }[]`, with the tree's schema in the contract |
+| Markdown dialect | The publisher's own (`markdown/`, `shared/markdown.ts`) | **Moves** to `nuxt4-layers/rich-text`, with profiles added |
+| Rich-text fields | `markdownSchema()` and `markdownFields` in each type | **Changes:** fields use `rich-text`'s schema with a **profile** (label, inline, block or document); the publisher finds them from the schema |
+| Checks on save | The publisher's own | **Changes:** `rich-text`'s checks, against each field's profile |
+| `PublisherRendered.markdown` | `string[]` | **Changes:** `{ path, nodes }[]`: `rich-text`'s safe tree for each field |
 | Screens: catch-all route, administration, moderation | `app/publisher-pages/`, `modules/publisher-routes.ts` | **Go** to the host, or a kit |
-| Components, renderer, form | `app/components/`, `publisher-markdown-render.ts` | **Go** to `ui` |
+| Components, renderer | `app/components/`, `publisher-markdown-render.ts` | **Go:** drawing safe trees is `ui`'s; editing is `content-editor`'s |
 | Wording, class map, pairings | `publisher-messages.ts`, `publisher-classes.ts`, `publisher-pairings.ts` | **Go** to `ui` or the host |
 | Slots: renderer, editor, person name | `publisher-components.ts`, `providePublisherEditor` | **Go**: the host composes these itself |
 | Styling | `tailwind.css`, Theme Manager dependency | **Go** |
-| Browser and axe tests | `tests/e2e/`, Playwright | **Go** to the kit or the host |
+| Browser and axe tests | `tests/e2e/`, Playwright | **Go** to `ui`, `content-editor`, a kit or the host |
+
+## Before it starts
+
+`nuxt4-layers/rich-text` must exist at 1.0, built from the publisher's dialect with its tests, and with profiles added. The publisher pins it by tag ([ADR-0008](https://github.com/nuxt4-layers/platform-architecture/blob/42e41a561f59a2bdbe57e25adc0bd56b48419324/docs/decisions/ADR-0008-independent-layer-delivery.md)).
 
 ## Steps
 
 Each step is a commit: its contract and tests first, then the code.
 
-1. **Safe trees in the contract.** Add the Markdown tree schema to `shared/`; change `PublisherRendered.markdown` to `{ path, nodes }[]`; export the parser and checks from `./markdown`. Tests: trees for every construct, and nothing unsafe ever appears in one.
-2. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots.
-3. **Remove the screens.** Delete `app/` except the typed client (including the editor slot), `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use.
-4. **Switchable API.** Add `publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both.
-5. **Documents.** Contract §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; README, roadmap and `CLAUDE.md` follow ADR-0009 and ADR-0010.
-6. **Release.** Tag `v1.0.0`: contract version 1, headless.
+1. **Adopt `rich-text`.** Depend on it; replace `markdownSchema()`, `markdownFields` and the dialect's constants with its schema and profiles; check every save against each field's profile; remove `markdown/` and `shared/markdown.ts`. Tests: a field refuses anything beyond its profile, by any route, including import.
+2. **Safe trees in answers.** Change `PublisherRendered.markdown` to `{ path, nodes }[]`, using `rich-text`'s tree. Tests: nothing unsafe ever appears in an answer.
+3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots.
+4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use.
+5. **Switchable API.** Add `publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both.
+6. **Documents.** The contract's dialect section points at `rich-text`; §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; the guide, README, roadmap and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011.
+7. **Release.** Tag `v1.0.0`: contract version 1, headless.
 
 ## Risks
 
 | Risk | Treatment |
 |---|---|
-| No screens until a host or kit draws them | The guide shows the host's route; a publishing kit follows when a second application needs it |
+| The publisher waits on `rich-text` | Its dialect and tests already exist; extracting them is small. Steps 3 to 5 can go first if it is late |
+| A field's profile chosen too loosely | Profiles are declared per field and reviewed with each type; ADR-0011 makes loosening one an ADR |
+| No screens until a host or kit draws them | The guide shows the host's route |
 | A presenter draws content unsafely | Content arrives only as safe trees; raw HTML never leaves the layer |
-| Accessibility no longer tested here | Moves to `ui` and the host, per ADR-0009 |
-| Lost work from the screens | Kept in git history, and a starting point for the kit |
+| Accessibility no longer tested here | Moves to `ui`, `content-editor` and the host, per ADR-0009 |
