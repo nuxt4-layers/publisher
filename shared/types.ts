@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { pending } from './pending'
 import { safeTextSchema, sitePathSchema } from './values'
 
 /**
@@ -131,15 +130,147 @@ export function definePublisherDocumentType<const Declaration extends PublisherT
  * wrong shape), `approval` with `moderation`, and a risk below the floor.
  */
 export function buildPublisherRegistry(declarations: readonly PublisherTypeDeclarationInput[]): PublisherRegistry {
-  return pending(`buildPublisherRegistry(${declarations.length})`)
+  const registry = new Map<string, PublisherTypeDeclaration>()
+  for (const input of declarations) {
+    const parsed = publisherTypeDeclarationSchema.safeParse(input)
+    const name = typeof (input as { type?: unknown })?.type === 'string' ? (input as { type: string }).type : '?'
+    if (!parsed.success) throw new TypeError(`Document type '${name}' is invalid against the meta-schema (${parsed.error.issues[0]?.path.join('.') || 'declaration'}: ${parsed.error.issues[0]?.message}).`)
+    const declaration = parsed.data
+    if (registry.has(declaration.type)) throw new TypeError(`Document type '${declaration.type}' is registered twice.`)
+    let jsonSchema: JsonNode
+    try {
+      jsonSchema = z.toJSONSchema(declaration.fields, { io: 'input', unrepresentable: 'any' }) as JsonNode
+    }
+    catch {
+      throw new TypeError(`Document type '${declaration.type}' has fields that cannot be described.`)
+    }
+    const problem = unbounded(jsonSchema, jsonSchema, new Set())
+    if (problem) throw new TypeError(`Document type '${declaration.type}' has ${problem} in its fields.`)
+    const fail = (what: string) => {
+      throw new TypeError(`Document type '${declaration.type}' ${what}.`)
+    }
+    for (const path of declaration.markdownFields) {
+      const leaves = resolvePath(jsonSchema, jsonSchema, path)
+      if (leaves.length === 0 || !leaves.every(leaf => isType(leaf, 'string') && leaf.enum === undefined && leaf.const === undefined)) fail(`names Markdown field '${path}', which is not a free-text string field`)
+    }
+    for (const field of declaration.listing.filterable) {
+      const node = topField(jsonSchema, field)
+      if (!node || !(isFilterable(node) || (isType(node, 'array') && isFilterable(deref(jsonSchema, node.items as JsonNode | undefined))))) fail(`names filterable field '${field}', which is not a string, enumeration or array of either`)
+    }
+    if (declaration.lifecycle.approval && declaration.lifecycle.moderation) fail('declares both approval and moderation')
+    if (declaration.personalData) {
+      const subject = topField(jsonSchema, declaration.personalData.subjectField)
+      if (!subject || !isType(subject, 'string')) fail(`names subject field '${declaration.personalData.subjectField}', which is not a string field`)
+      const consent = topField(jsonSchema, declaration.personalData.consentField)
+      const properties = consent?.properties as Record<string, unknown> | undefined
+      if (!consent || !properties?.givenAt || !properties?.statement) fail(`names consent field '${declaration.personalData.consentField}', which is not a consent record`)
+    }
+    const floor = declaration.personalData ? PUBLISHER_PERSONAL_DATA_RISK_FLOOR : PUBLISHER_RISK_FLOOR
+    const risks = {} as Record<PublisherPermissionAction, PublisherRisk>
+    for (const action of PUBLISHER_PERMISSION_ACTIONS) {
+      const declared = declaration.lifecycle.risks[action]
+      if (declared !== undefined && riskRank(declared) < riskRank(floor[action])) fail(`declares '${action}' at '${declared}', below the floor '${floor[action]}'`)
+      risks[action] = declared ?? floor[action]
+    }
+    const { $schema: _, ...schema } = jsonSchema
+    registry.set(declaration.type, Object.freeze({ ...declaration, risks: Object.freeze(risks), jsonSchema: Object.freeze(schema) }))
+  }
+  return registry
+}
+
+type JsonNode = Record<string, unknown>
+
+function deref(root: JsonNode, node: JsonNode | undefined): JsonNode | undefined {
+  if (!node || typeof node.$ref !== 'string') return node
+  const ref = node.$ref
+  if (ref === '#') return root
+  const match = /^#\/\$defs\/(.+)$/.exec(ref)
+  return match ? (root.$defs as Record<string, JsonNode> | undefined)?.[match[1]!] : undefined
+}
+
+function alternatives(root: JsonNode, node: JsonNode | undefined): JsonNode[] {
+  const resolved = deref(root, node)
+  if (!resolved) return []
+  const options = (resolved.anyOf ?? resolved.oneOf) as JsonNode[] | undefined
+  return options ? options.flatMap(option => alternatives(root, option)) : [resolved]
+}
+
+function isType(node: JsonNode, type: string): boolean {
+  return node.type === type || (Array.isArray(node.type) && node.type.includes(type))
+}
+
+function isFilterable(node: JsonNode | undefined): boolean {
+  return Boolean(node) && (Array.isArray(node!.enum) || (isType(node!, 'string') && typeof node!.maxLength === 'number'))
+}
+
+function topField(root: JsonNode, field: string): JsonNode | undefined {
+  const properties = root.properties as Record<string, JsonNode> | undefined
+  const node = properties && Object.hasOwn(properties, field) ? properties[field] : undefined
+  // A field may be optional or nullable: take its non-null alternative.
+  return alternatives(root, node).find(option => !isType(option, 'null'))
+}
+
+/** The schemas a field path leads to, across every alternative of a union. */
+function resolvePath(root: JsonNode, start: JsonNode, path: string): JsonNode[] {
+  let nodes = [start]
+  for (const segment of path.split('.')) {
+    const array = segment.endsWith('[]')
+    const name = array ? segment.slice(0, -2) : segment
+    nodes = nodes.flatMap(node => alternatives(root, node)).flatMap((node) => {
+      const properties = node.properties as Record<string, JsonNode> | undefined
+      return properties && Object.hasOwn(properties, name) ? alternatives(root, properties[name]) : []
+    }).filter(node => !isType(node, 'null'))
+    if (array) nodes = nodes.filter(node => isType(node, 'array')).flatMap(node => alternatives(root, node.items as JsonNode))
+  }
+  return nodes
+}
+
+/** A pattern with no unbounded quantifier matches only bounded strings. */
+function finitePattern(pattern: unknown): boolean {
+  return typeof pattern === 'string' && !/(?<!\\)[*+]|\{\d+,\}/.test(pattern)
+}
+
+/** The first unbounded or loose part of a JSON Schema, or `null`. */
+function unbounded(root: JsonNode, node: JsonNode | undefined, seen: Set<JsonNode>): string | null {
+  if (!node || seen.has(node)) return null
+  seen.add(node)
+  const resolved = deref(root, node)
+  if (!resolved) return 'an unresolvable reference'
+  if (resolved !== node) return unbounded(root, resolved, seen)
+  for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
+    for (const option of (node[key] as JsonNode[] | undefined) ?? []) {
+      const problem = unbounded(root, option, seen)
+      if (problem) return problem
+    }
+  }
+  if (isType(node, 'string') && node.enum === undefined && node.const === undefined && typeof node.maxLength !== 'number'
+    && !['date', 'date-time', 'uuid', 'email'].includes(node.format as string) && !finitePattern(node.pattern)) return 'an unbounded string'
+  if (isType(node, 'array')) {
+    if (typeof node.maxItems !== 'number') return 'an unbounded array'
+    const problem = unbounded(root, node.items as JsonNode | undefined, seen)
+    if (problem) return problem
+  }
+  if (isType(node, 'object') || node.properties) {
+    if (node.additionalProperties !== false) return 'an object that is not strict, or a record'
+    for (const property of Object.values((node.properties as Record<string, JsonNode> | undefined) ?? {})) {
+      const problem = unbounded(root, property, seen)
+      if (problem) return problem
+    }
+  }
+  return null
 }
 
 /** The permission for an action on a type: `publisher.<type>.<action>`. */
 export function publisherPermission(type: string, action: PublisherPermissionAction): string {
-  return pending(`publisherPermission(${type}, ${action})`)
+  return `publisher.${type}.${action}`
 }
 
 /** Every permission the registry derives, with its risk, for the host to add to Authorisation's catalogue (§10). */
 export function publisherPermissions(registry: PublisherRegistry): readonly { permission: string, risk: PublisherRisk, type: string, action: PublisherPermissionAction }[] {
-  return pending(`publisherPermissions(${registry.size})`)
+  return [...registry.values()].flatMap(declaration => PUBLISHER_PERMISSION_ACTIONS.map(action => ({
+    permission: publisherPermission(declaration.type, action),
+    risk: declaration.risks[action],
+    type: declaration.type,
+    action,
+  })))
 }
