@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { checkRichText } from '@nuxt4-layers/rich-text'
 import type {
   PublisherContent,
   PublisherDocument,
@@ -20,7 +21,6 @@ import {
   PublisherCompositionError,
   PublisherFailure,
 } from '../../shared/contracts'
-import { checkPublisherMarkdown } from '../../markdown/dialect'
 import { quoteSchema } from '../database/migrations'
 import {
   usePublisherAccessDecision,
@@ -176,8 +176,8 @@ function issueCode(issues: readonly { message: string }[]): string | undefined {
   return issues.map(issue => issue.message).find(message => /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(message) && message.length <= 64)
 }
 
-/** Every string a Markdown field path leads to in a document's fields. */
-export function markdownValues(fields: unknown, path: string): string[] {
+/** Every string a formatted field's path leads to in a document's fields. */
+export function richTextValues(fields: unknown, path: string): string[] {
   let values: unknown[] = [fields]
   for (const segment of path.split('.')) {
     const array = segment.endsWith('[]')
@@ -188,14 +188,34 @@ export function markdownValues(fields: unknown, path: string): string[] {
   return values.filter((value): value is string => typeof value === 'string')
 }
 
-/** The documents and assets a version's Markdown names. */
+/** Rewrites, in place, every string a formatted field's path leads to. */
+function rewriteRichText(fields: unknown, path: string, rewrite: (value: string) => string): void {
+  const [segment, ...rest] = path.split('.')
+  if (!segment || fields === null || typeof fields !== 'object' || Array.isArray(fields)) return
+  const array = segment.endsWith('[]')
+  const name = array ? segment.slice(0, -2) : segment
+  const holder = fields as Record<string, unknown>
+  if (!Object.hasOwn(holder, name)) return
+  const apply = (value: unknown): unknown => rest.length ? (rewriteRichText(value, rest.join('.'), rewrite), value) : typeof value === 'string' ? rewrite(value) : value
+  const value = holder[name]
+  holder[name] = array && Array.isArray(value) ? value.map(apply) : array ? value : apply(value)
+}
+
+/** One newline form and NFC, so equal text always has one digest. */
+const normalise = (value: string) => value.normalize('NFC').replace(/\r\n?/g, '\n')
+
+/** Control, private-use and surrogate characters, but tab and newline. */
+const UNSAFE_CHARACTERS = /[\p{Cc}\p{Co}\p{Cs}]/u
+
+/** The documents and assets a version's formatted fields name, and why any may not be saved (§6). */
 export function namedBy(declaration: PublisherTypeDeclaration, content: PublisherContent): { documentIds: string[], assetIds: string[], problems: string[] } {
   const documentIds = new Set<string>()
   const assetIds = new Set<string>()
   const problems = new Set<string>()
-  for (const path of declaration.markdownFields) {
-    for (const source of markdownValues(content.fields, path)) {
-      const checked = checkPublisherMarkdown(source)
+  for (const field of declaration.richTextFields) {
+    for (const source of richTextValues(content.fields, field.path)) {
+      if (UNSAFE_CHARACTERS.test(source.replace(/[\t\n]/g, ''))) problems.add('unsafe-characters')
+      const checked = checkRichText(source, field)
       checked.documentIds.forEach(id => documentIds.add(id))
       checked.assetIds.forEach(id => assetIds.add(id))
       checked.problems.forEach(problem => problems.add(problem))
@@ -211,6 +231,7 @@ export function parseContent(declaration: PublisherTypeDeclaration, input: unkno
   const fields = declaration.fields.safeParse(envelope.data.fields)
   if (!fields.success) throw new PublisherFailure('validation-failed', issueCode(fields.error.issues))
   const content: PublisherContent = { ...envelope.data, fields: fields.data as Record<string, unknown> }
+  for (const field of declaration.richTextFields) rewriteRichText(content.fields, field.path, normalise)
   if (declaration.address.kind === 'none') {
     if (content.slug !== null || content.addressDate !== null) throw new PublisherFailure('validation-failed', 'address-not-allowed')
   }

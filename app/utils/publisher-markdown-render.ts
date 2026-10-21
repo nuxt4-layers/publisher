@@ -1,24 +1,24 @@
 import type { VNode, VNodeArrayChildren } from 'vue'
 import { createTextVNode, h } from 'vue'
 import type { PublisherResolvedLinks } from '../../shared/contracts'
-import type { PublisherMarkdownNode } from '../../markdown/dialect'
+import type { RichTextNode } from '@nuxt4-layers/rich-text'
 
 /**
- * Renders the dialect's safe tree to VNodes (docs/contracts.md §6.3), never
+ * Renders `rich-text`'s safe tree to VNodes (docs/contracts.md §6.3), never
  * as raw HTML. `doc:` links take the address `links` gives, or render as their
  * text; images take the asset's address, or render as nothing.
  */
-export function renderPublisherMarkdown(nodes: readonly PublisherMarkdownNode[], links: PublisherResolvedLinks): VNode[] {
+export function renderPublisherMarkdown(nodes: readonly RichTextNode[], links: PublisherResolvedLinks): VNode[] {
   return nodes.flatMap(node => renderNode(node, links)).map(child => typeof child === 'string' ? createTextVNode(child) : child)
 }
 
-function renderAll(nodes: readonly PublisherMarkdownNode[], links: PublisherResolvedLinks): VNodeArrayChildren {
+function renderAll(nodes: readonly RichTextNode[], links: PublisherResolvedLinks): VNodeArrayChildren {
   return nodes.flatMap(node => renderNode(node, links))
 }
 
 const ALIGN = { left: 'text-align:left', right: 'text-align:right', center: 'text-align:center' } as const
 
-function renderNode(node: PublisherMarkdownNode, links: PublisherResolvedLinks): (VNode | string)[] {
+function renderNode(node: RichTextNode, links: PublisherResolvedLinks): (VNode | string)[] {
   switch (node.kind) {
     case 'text': return [node.value]
     case 'paragraph': return [h('p', renderAll(node.children, links))]
@@ -47,7 +47,7 @@ function renderNode(node: PublisherMarkdownNode, links: PublisherResolvedLinks):
     }
     case 'table': {
       const [head, ...body] = node.rows
-      const cell = (tag: 'th' | 'td', content: PublisherMarkdownNode[], column: number) => {
+      const cell = (tag: 'th' | 'td', content: RichTextNode[], column: number) => {
         const align = node.align[column]
         return h(tag, align ? { style: ALIGN[align] } : null, renderAll(content, links))
       }

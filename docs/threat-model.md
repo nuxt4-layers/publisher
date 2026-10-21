@@ -14,7 +14,7 @@ The publisher decides what a site says in public, so its first duty is that noth
 
 | Boundary | Trusted input | Untrusted input |
 |---|---|---|
-| Browser → host → publisher | The signed-in subject, from the host's resolver | Every identifier, path, query and body; every Markdown source; the request's origin |
+| Browser → host → publisher | The signed-in subject, from the host's resolver | Every identifier, path, query and body; every rich-text source; the request's origin |
 | Host → publisher at start-up | The type declarations and ports the host supplies, checked before use | — |
 | Publisher → access and approval ports | Their answers, parsed; a failure refuses the action | — |
 | Publisher → asset port | Each asset's address, parsed as an `https` URL or site path | — |
@@ -30,8 +30,8 @@ The publisher decides what a site says in public, so its first duty is that noth
 | T3 | A version is published without the required second person | Types with `approval` publish only with the approval port's `approved` answer, bound to the version's digest, with enough approvers other than the requester and publisher; a later save asks again | lifecycle "never publishes a type needing review" | Implemented |
 | T4 | An action by someone without the permission, or with a weak sign-in | Every action checked through the access-decision port at `strong` consistency, per type; step-up to the permission's risk (`meetsStepUp`) | lifecycle "permissions and assurance" | Implemented |
 | T5 | A type declared with a risk too low, or a lax schema | The meta-schema and `buildPublisherRegistry` refuse at start-up: floors, strict objects, bounded strings and arrays | `tests/contracts.test.ts` "registration"; `tests/composition.test.ts` | Implemented |
-| T6 | Stored script, event handlers or `javascript:`/`data:` links run in readers' browsers (XSS) | Markdown parsed to the dialect's own tree and rendered to VNodes; raw HTML is text; only `https:`, `mailto:`, `doc:`, `asset:` and site paths kept; no `v-html` or `innerHTML` in the layer | `tests/markdown.test.ts`; `tests/presentation.test.ts`; e2e "renders Markdown safely" | Implemented |
-| T7 | Images hot-linked from elsewhere, or without alternative text | Images only from `asset:` through the host's asset port; no alt text refused on save | markdown "refuses an image without alt text" | Implemented |
+| T6 | Stored script, event handlers or `javascript:`/`data:` links run in readers' browsers (XSS) | Rich text parsed to `rich-text`'s safe tree for its field's profile and rendered to VNodes; anything beyond a field's profile refused on save; raw HTML is text; only `https:`, `mailto:`, `doc:`, `asset:` and site paths kept; no `v-html` or `innerHTML` in the layer | `tests/rich-text.test.ts`; `tests/presentation.test.ts`; e2e "renders Markdown safely" | Implemented |
+| T7 | Images hot-linked from elsewhere, or without alternative text | Images only from `asset:` through the host's asset port; no alt text refused on save | rich-text's own tests; `tests/http.test.ts` "image-without-alt" | Implemented |
 | T8 | An unmoderated submission appears in public | Submissions are `in-review` with `moderation: pending`; only `moderate` releases them; `publish` cannot | lifecycle "moderation" | Implemented |
 | T9 | A person's words published without consent, or kept after erasure | Consent field required to publish; erasure deletes every version, link, redirect and approval; superseded versions deleted after retention; readers never get the subject or consent field | `tests/personal-data.test.ts` | Implemented |
 | T10 | A lost update overwrites another editor's work | Every action carries `expectedVersion`; anything else is `version-stale` | lifecycle "versions" | Implemented |
@@ -49,6 +49,6 @@ The publisher decides what a site says in public, so its first duty is that noth
 
 ## 4. Gaps and risk treatments
 
-- **Denial of service by large content.** Strings, arrays and Markdown fields are bounded by the declaration (100,000 characters at most per Markdown field), and listings by 100 per request. Rate limiting is the host's.
+- **Denial of service by large content.** Strings, arrays and formatted fields are bounded by the declaration (at most 20 formatted fields per type, each declaring its maximum length), and listings by 100 per request. Rate limiting is the host's.
 - **Malicious assets.** The publisher trusts the address the asset port answers; scanning uploads is the host's asset store's duty.
 - **Approval port integrity.** The approval port is trusted to answer for the digest asked; the publisher checks the digest and the approvers' count, not who they are.

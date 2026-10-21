@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, normalize, relative } from 'node:path'
+import { richTextSchema } from '@nuxt4-layers/rich-text'
 import { z } from 'zod'
 import { describe, expect, it } from 'vitest'
 import { toPosix } from './support/paths'
@@ -34,24 +35,25 @@ function code(file: string): string {
     .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
 }
 
+const RICH_TEXT = '@nuxt4-layers/rich-text'
 const contractFiles = files('shared', /\.ts$/)
 /** The layer's own source: everything a host receives except the examples. */
-const layerFiles = [...files('app'), ...files('server'), ...files('shared'), ...files('markdown'), ...files('modules'), 'nuxt.config.ts']
+const layerFiles = [...files('app'), ...files('server'), ...files('shared'), ...files('modules'), 'nuxt.config.ts']
 
 /**
  * Contract version 1 (docs/contracts.md §17). Removing or narrowing any of
  * these after 1.0.0 needs contract version 2.
  */
 const VERSION_1_EXPORTS = [
-  'APPROVAL_FLOOR', 'ASSET_ID_PATTERN', 'ASSET_LINK_PATTERN', 'CRITICAL_FRESHNESS_MINUTES', 'DOC_LINK_PATTERN', 'FIELD_NAME_PATTERN', 'FIELD_PATH_PATTERN',
-  'MARKDOWN_MAX_LENGTH', 'PUBLISHER_ACTIONS', 'PUBLISHER_BUNDLE_FORMAT', 'PUBLISHER_CONFLICT_REASONS', 'PUBLISHER_CONTENT_PROBLEMS', 'PUBLISHER_CONTRACT_VERSION',
-  'PUBLISHER_ERROR_CODES', 'PUBLISHER_ERROR_STATUS', 'PUBLISHER_FEED_FORMATS', 'PUBLISHER_LINK_SCHEMES', 'PUBLISHER_MARKDOWN_EXTENSIONS', 'PUBLISHER_MODERATION_STATES',
+  'APPROVAL_FLOOR', 'ASSET_ID_PATTERN', 'CRITICAL_FRESHNESS_MINUTES', 'FIELD_NAME_PATTERN',
+  'PUBLISHER_ACTIONS', 'PUBLISHER_BUNDLE_FORMAT', 'PUBLISHER_CONFLICT_REASONS', 'PUBLISHER_CONTENT_PROBLEMS', 'PUBLISHER_CONTRACT_VERSION',
+  'PUBLISHER_ERROR_CODES', 'PUBLISHER_ERROR_STATUS', 'PUBLISHER_FEED_FORMATS', 'PUBLISHER_MAX_RICH_TEXT_FIELDS', 'PUBLISHER_MODERATION_STATES',
   'PUBLISHER_ORDERS', 'PUBLISHER_PERMISSION_ACTIONS', 'PUBLISHER_PERSONAL_DATA_RISK_FLOOR', 'PUBLISHER_RETENTION', 'PUBLISHER_RISKS', 'PUBLISHER_RISK_FLOOR',
   'PUBLISHER_SCHEDULED_TRANSITIONS', 'PUBLISHER_STATUSES', 'PUBLISHER_TRANSITIONS', 'PublisherCompositionError', 'PublisherFailure', 'REASON_CODE_PATTERN',
-  'SITE_ID_PATTERN', 'SITE_LINK_PATTERN', 'SLUG_PATTERN', 'TYPE_KEY_PATTERN', 'UUID_PATTERN', 'UUID_V7_PATTERN', 'addressDateSchema',
+  'SITE_ID_PATTERN', 'SLUG_PATTERN', 'TYPE_KEY_PATTERN', 'UUID_PATTERN', 'UUID_V7_PATTERN', 'addressDateSchema',
   'addressRuleSchema', 'assetIdSchema', 'buildPublisherRegistry', 'canonicalJson', 'codeSchema', 'correlationIdSchema',
   'definePublisherDocumentType', 'digestSchema', 'httpsUrlSchema', 'identifierSchema', 'instantSchema', 'localeSchema',
-  'markdownSchema', 'meetsStepUp', 'publisherActionRequestSchema', 'publisherBacklinkSchema', 'publisherBundleDocumentSchema', 'publisherBundleSchema',
+  'meetsStepUp', 'publisherActionRequestSchema', 'publisherBacklinkSchema', 'publisherBundleDocumentSchema', 'publisherBundleSchema',
   'publisherConsentSchema', 'publisherContentSchema', 'publisherDocumentSchema', 'publisherDraftSchema', 'publisherEventSchema', 'publisherHeadSchema',
   'publisherListingQuerySchema', 'publisherListingSchema', 'publisherPermission', 'publisherPermissions', 'publisherPersonExportSchema', 'publisherRenderedSchema',
   'publisherResolutionSchema', 'publisherResolvedLinksSchema', 'publisherSitemapEntrySchema', 'publisherTypeDeclarationSchema', 'publisherVersionSchema', 'reasonCodeSchema',
@@ -64,20 +66,20 @@ describe('the public contract', () => {
     expect(Object.keys(contracts)).toEqual(expect.arrayContaining(VERSION_1_EXPORTS))
   })
 
-  it('imports nothing but zod and its own modules', () => {
+  it('imports nothing but zod, the shared rich-text format and its own modules', () => {
     for (const file of contractFiles) {
       for (const target of imports(file)) {
-        expect(target === 'zod' || /^shared\//.test(target), `${file} imports ${target}`).toBe(true)
+        expect(target === 'zod' || target === RICH_TEXT || /^shared\//.test(target), `${file} imports ${target}`).toBe(true)
       }
     }
   })
 
-  it('never imports another layer, and the examples only the contract', () => {
+  it('never imports another layer, only the stateless rich-text library (ADR-0011), and the examples only the contract', () => {
     for (const file of [...layerFiles, ...files('examples')]) {
-      for (const target of imports(file)) expect(/^@nuxt4-layers\//.test(target), `${file} imports ${target}`).toBe(false)
+      for (const target of imports(file)) expect(/^@nuxt4-layers\//.test(target) && target !== RICH_TEXT, `${file} imports ${target}`).toBe(false)
     }
     for (const file of files('examples')) {
-      for (const target of imports(file)) expect(target === 'zod' || target === 'shared/contracts', `${file} imports ${target}`).toBe(true)
+      for (const target of imports(file)) expect(target === 'zod' || target === RICH_TEXT || target === 'shared/contracts', `${file} imports ${target}`).toBe(true)
     }
   })
 
@@ -131,14 +133,6 @@ describe('the public contract', () => {
     }
   })
 
-  it('keeps only https, mailto, doc and asset link schemes, and site paths', () => {
-    expect(contracts.PUBLISHER_LINK_SCHEMES).toEqual(['https:', 'mailto:', 'doc:', 'asset:'])
-    expect(contracts.DOC_LINK_PATTERN.test('doc:01928c4e-0000-7000-8000-000000000002')).toBe(true)
-    expect(contracts.DOC_LINK_PATTERN.test('doc:../etc')).toBe(false)
-    expect(contracts.SITE_LINK_PATTERN.test('/about')).toBe(true)
-    expect(contracts.SITE_LINK_PATTERN.test('//evil.example')).toBe(false)
-  })
-
   it('takes slugs, addresses and text strictly', () => {
     expect(contracts.siteIdSchema.safeParse('01928c4e-0000-7000-8000-000000000002').success).toBe(true)
     expect(contracts.siteIdSchema.safeParse('main').success).toBe(true)
@@ -163,6 +157,15 @@ describe('registration', () => {
     // A personal-data type's drafts and edits are at least medium.
     expect(built.get('appraisal')!.risks['view-draft']).toBe('medium')
     expect(built.get('landing')!.jsonSchema).toMatchObject({ type: 'object', additionalProperties: false })
+  })
+
+  it('finds each type\'s formatted fields and profiles from its schema; every other string is plain', () => {
+    const built = registry()
+    expect(built.get('landing')!.richTextFields).toEqual([
+      { path: 'intro', profile: 'block', max: 10_000 },
+      { path: 'blocks[].body', profile: 'document', max: 10_000 },
+    ])
+    expect(built.get('appraisal')!.richTextFields).toEqual([{ path: 'words', profile: 'block', max: 2000 }])
   })
 
   it('registers nothing by default: the examples are valid declarations, and examples only', () => {
@@ -201,10 +204,10 @@ describe('registration', () => {
       { ...bulletinType, fields: z.strictObject({ body: z.string() }) },
       { ...bulletinType, fields: z.strictObject({ body: z.string().max(10), list: z.array(z.string().max(5)) }) },
       { ...bulletinType, fields: z.string() },
+      // Formatted fields are found from the schema, never named; and bounded in number.
+      { ...bulletinType, markdownFields: ['body'] },
+      { ...bulletinType, fields: z.strictObject(Object.fromEntries(Array.from({ length: 21 }, (_, index) => [`text${index}`, richTextSchema({ profile: 'inline', max: 100 })]))) },
       // Named fields must exist, with the right shape.
-      { ...bulletinType, markdownFields: ['missing'] },
-      { ...bulletinType, markdownFields: ['topic[].body'] },
-      { ...landingType, markdownFields: ['section'] },
       { ...bulletinType, listing: { listable: true, order: 'published-desc', filterable: ['body2'] } },
       { ...appraisalType, personalData: { subjectField: 'nobody', consentField: 'consent', retentionDays: 90 } },
       { ...appraisalType, personalData: { subjectField: 'authorId', consentField: 'stars', retentionDays: 90 } },
