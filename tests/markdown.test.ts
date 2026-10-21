@@ -25,7 +25,8 @@ describe('the shared Markdown dialect', () => {
 
   it('renders script, event handlers and raw HTML harmlessly, as text', async () => {
     const html = await render('<script>alert(1)</script>\n\n<img src=x onerror="alert(1)">\n\nText <span onclick="alert(1)">inline</span> <iframe src="https://evil.example"></iframe>')
-    expect(html).not.toMatch(/<script|<img|<span|<iframe|onerror=|onclick=/i)
+    // Written markup appears as text; no element or attribute is ever created from it.
+    expect(html).not.toMatch(/<(?:script|img|span|iframe)\b|<[^>]*\son\w+=/i)
     expect(html).toContain('&lt;script&gt;')
   })
 
@@ -45,7 +46,7 @@ describe('the shared Markdown dialect', () => {
     expect(html).toContain('href="https://example.org/a"')
     expect(html).toContain('href="mailto:hello@example.org"')
     expect(html).toContain('href="/about"')
-    expect(html).not.toMatch(/javascript:|data:|vbscript:|http:\/\/example|href="\/\/evil/i)
+    expect(html).not.toMatch(/href="(?:javascript:|data:|vbscript:|http:|\/\/)/i)
     for (const text of ['script', 'data', 'plain', 'protocol-relative', 'vb']) expect(html).toContain(text)
   })
 

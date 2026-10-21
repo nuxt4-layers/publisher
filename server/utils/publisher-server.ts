@@ -15,7 +15,18 @@ import type {
   PublisherSubject,
   PublisherVersion,
 } from '../../shared/contracts'
-import { pending } from '../../shared/pending'
+import { PublisherCompositionError } from '../../shared/contracts'
+import { runPublisherMigrations } from '../database/migrations'
+import * as reading from '../internal/reading'
+import { guarded, withClient } from '../internal/store'
+import * as writing from '../internal/writing'
+import {
+  usePublisherAccessDecision,
+  usePublisherApproval,
+  usePublisherDatabase,
+  usePublisherEventSink,
+  usePublisherRegistry,
+} from './publisher-composition'
 
 /**
  * The publisher's server functions (docs/contracts.md §13), auto-imported
@@ -38,7 +49,8 @@ interface Viewing {
 
 /** Applies append-only migrations through the migration pool. */
 export async function migratePublisherDatabase(): Promise<string[]> {
-  return pending('migratePublisherDatabase')
+  const database = usePublisherDatabase()
+  return guarded(() => runPublisherMigrations(database.migrationPool ?? database.pool, database.schema, database.runtimeRole))
 }
 
 /**
@@ -47,17 +59,22 @@ export async function migratePublisherDatabase(): Promise<string[]> {
  * `PublisherCompositionError`; a host calls it after migrating.
  */
 export async function checkPublisherComposition(): Promise<void> {
-  return pending('checkPublisherComposition')
+  usePublisherDatabase()
+  usePublisherAccessDecision()
+  usePublisherEventSink()
+  if ([...usePublisherRegistry().values()].some(declaration => declaration.lifecycle.approval)) usePublisherApproval()
+  await withClient(async () => {})
+  if (usePublisherRegistry().size === 0) throw new PublisherCompositionError('PublisherDocumentTypes', 'No document type is registered.')
 }
 
 /** A new draft, version 1 (§5). Needs `edit`. */
 export async function createPublisherDocument(input: Acting & { type: string, content: PublisherContentInput }): Promise<PublisherDocument> {
-  return pending(`createPublisherDocument(${input.type})`)
+  return writing.createDocument(input)
 }
 
 /** Any action of the state machine (§5.1): save, submit, withdraw, publish, unpublish, archive, reopen, restore, moderate. */
 export async function transitionPublisherDocument(input: Acting & { documentId: string, request: PublisherActionRequestInput }): Promise<PublisherDocument> {
-  return pending(`transitionPublisherDocument(${input.request.action})`)
+  return writing.transitionDocument(input)
 }
 
 /**
@@ -66,85 +83,85 @@ export async function transitionPublisherDocument(input: Acting & { documentId: 
  * signed-in person, or `null`.
  */
 export async function receivePublisherSubmission(input: { correlationId: string, submitterId: string | null, type: string, content: PublisherContentInput }): Promise<{ documentId: string }> {
-  return pending(`receivePublisherSubmission(${input.type})`)
+  return writing.receiveSubmission(input)
 }
 
 /** A document's newest version, for administration. Needs `view-draft`; otherwise `forbidden`. */
 export async function getPublisherDocument(input: { subject: PublisherSubject, documentId: string, version?: number }): Promise<PublisherDocument> {
-  return pending(`getPublisherDocument(${input.documentId})`)
+  return reading.getDocument(input)
 }
 
 /** Documents of a type, for administration, newest change first. Needs `view-draft`. */
 export async function listPublisherDocuments(input: { subject: PublisherSubject, type: string, search?: string, status?: PublisherStatus, limit?: number, offset?: number }): Promise<PublisherListing> {
-  return pending(`listPublisherDocuments(${input.type})`)
+  return reading.listDocuments(input)
 }
 
 /** Submissions awaiting a moderator, of every type the subject may moderate. */
 export async function listPublisherModerationQueue(input: { subject: PublisherSubject, type?: string }): Promise<PublisherListing> {
-  return pending(`listPublisherModerationQueue(${input.type})`)
+  return reading.listModerationQueue(input)
 }
 
 /** Every saved version, newest first. Needs `view-draft`. */
 export async function listPublisherHistory(input: { subject: PublisherSubject, documentId: string }): Promise<PublisherVersion[]> {
-  return pending(`listPublisherHistory(${input.documentId})`)
+  return reading.listHistory(input)
 }
 
 /** Every document whose newest or published version links to this one (§7.3). Needs `view-draft` on its type. */
 export async function listPublisherBacklinks(input: { subject: PublisherSubject, documentId: string }): Promise<PublisherBacklink[]> {
-  return pending(`listPublisherBacklinks(${input.documentId})`)
+  return reading.listBacklinks(input)
 }
 
 /** What a request path is now: a document, a redirect or nothing (§7.1). */
 export async function resolvePublisherPath(input: Viewing & { path: string }): Promise<PublisherResolution> {
-  return pending(`resolvePublisherPath(${input.path})`)
+  return reading.resolvePath(input)
 }
 
 /** A published document by path or id, ready to render; `null` for anything the viewer may not see. */
 export async function getPublishedDocument(input: Viewing & ({ path: string } | { documentId: string })): Promise<PublisherRendered | null> {
-  return pending(`getPublishedDocument(${'path' in input ? input.path : input.documentId})`)
+  return reading.getPublished(input)
 }
 
 /** Published documents of a listable type (§8.1). */
 export async function listPublishedDocuments(query: PublisherListingQuery): Promise<PublisherListing> {
-  return pending(`listPublishedDocuments(${query.type})`)
+  return reading.listPublished(query)
 }
 
 /** An RSS 2.0 or Atom 1.0 feed of a listable type's newest published documents (§8.2). */
 export async function getPublisherFeed(input: { type: string, format: PublisherFeedFormat, origin: string, limit?: number }): Promise<string> {
-  return pending(`getPublisherFeed(${input.type}, ${input.format})`)
+  return reading.getFeed(input)
 }
 
 /** Every published, addressed document, for the host's `sitemap.xml` (§8.3). */
 export async function listPublisherSitemapEntries(): Promise<PublisherSitemapEntry[]> {
-  return pending('listPublisherSitemapEntries')
+  return reading.listSitemap()
 }
 
 /** Publishes and unpublishes what the clock has reached, and applies retention (§5.4, §9). Never an endpoint. */
 export async function runPublisherMaintenance(): Promise<{ published: number, unpublished: number, versionsDeleted: number }> {
-  return pending('runPublisherMaintenance')
+  return writing.runMaintenance()
 }
 
 /** Relays outbox events to the event sink, at least once, in order. Answers how many were sent. */
 export async function relayPublisherOutbox(input: { limit?: number } = {}): Promise<number> {
-  return pending(`relayPublisherOutbox(${input.limit})`)
+  return reading.relayOutbox(input)
 }
 
 /** The portable bundle (§16), of some types or all. Server-only. */
 export async function exportPublisherContent(input: { types?: readonly string[] } = {}): Promise<PublisherBundle> {
-  return pending(`exportPublisherContent(${input.types?.length})`)
+  return reading.exportContent(input)
 }
 
 /** Imports a bundle into documents that do not exist yet; how a host seeds content. Server-only. */
 export async function importPublisherContent(input: { bundle: unknown, correlationId: string }): Promise<{ documents: number, versions: number }> {
-  return pending(`importPublisherContent(${input.correlationId})`)
+  return reading.importContent(input)
 }
 
 /** A person's documents of personal-data types, with every version (§9). Server-only. */
 export async function exportPublisherPersonData(input: { identityId: string }): Promise<PublisherPersonExport> {
-  return pending(`exportPublisherPersonData(${input.identityId})`)
+  return reading.exportPerson(input)
 }
 
 /** Erases a person's documents of personal-data types, their history, links and redirects (§9). Server-only. */
 export async function erasePublisherPerson(input: { identityId: string, correlationId: string }): Promise<{ documents: number, versions: number }> {
-  return pending(`erasePublisherPerson(${input.identityId})`)
+  return reading.erasePerson(input)
 }
