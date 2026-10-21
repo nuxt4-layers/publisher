@@ -23,7 +23,7 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 | Images and files | The host's asset store: the publisher holds references only |
 | People's names | Profile, through the host's person-name component |
 | Who may do what, and approvals | The IAM suite, through the access-decision and approval ports |
-| The editing component | `content-editor`, through the editor slot |
+| Editing content: forms, Markdown editing, authoring | `content-editor`, through the editor slot; the publisher builds no editing form |
 
 ## Interfaces
 
@@ -31,7 +31,7 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 |---|---|---|
 | Consumes from the host | `providePublisherDocumentTypes` | The document types: fields, Markdown fields, address, listing, lifecycle, personal data |
 | Consumes from the host | Database, subject resolver, access decision, approval, clock, event sink, asset resolver, title template | Storage under ADR-0002; the signed-in subject; permissions; consent to publish; time; events; images; titles |
-| Consumes from the host (app side) | Renderer per type, editor, person name | Drawing documents, editing Markdown, naming authors |
+| Consumes from the host (app side) | Renderer per type, editor, person name | Drawing documents, editing content, naming authors |
 | Provides to pages | `usePublisher()`, the `publisher-document` catch-all route, `PublisherMarkdown`, administration pages | Rendering, metadata, editing and moderation |
 | Provides to the host's server | `getPublishedDocument`, `listPublishedDocuments`, feeds, sitemap entries, export and import, personal-data export and erasure, maintenance | Reading, seeding and data-subject requests |
 | Publishes | `publisher.*` events | Identifiers, codes and times only |

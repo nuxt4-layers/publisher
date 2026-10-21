@@ -17,7 +17,7 @@ The publisher answers one question: **which version of which document is publish
 | Images and files | The host's asset store | `asset:` references, resolved through the asset port (§6.2) |
 | People's names | The host's person-name component (Profile) | Opaque identity identifiers only (§4); names through the person-name slot (§15) |
 | Who may do what | The IAM suite | The access-decision and approval ports (§11), on the permissions of §10 |
-| The editing component | `nuxt4-layers/content-editor` | The editor slot (§15); a plain Markdown text area without one |
+| Editing content: forms, Markdown editing, authoring | `nuxt4-layers/content-editor` | The editor slot (§15.2). The publisher builds no editing form; without an editor, its screens show documents and their lifecycle read-only |
 
 ## 2. What the publisher holds
 
@@ -214,7 +214,7 @@ A type's `lifecycle.risks` may raise any of them; never lower (refused at start-
 | `PublisherAssetResolver` | No: images are refused without it | The host's asset store | Each `asset:` id's address, or `null` |
 | `PublisherTitleTemplate` | No: a document's title alone | Host, e.g. from Configuration's `seo.title-template` | Page and feed titles |
 | Renderer per type (`providePublisherRenderer`) | No: the generic renderer | Host, app side | The component that draws a document of that type |
-| Editor (`providePublisherEditor`) | No: a plain Markdown text area | `content-editor`, through the host, app side | The editing component for Markdown fields |
+| Editor (`providePublisherEditor`) | No: without it, documents are not edited on the layer's screens | `content-editor`, through the host, app side | The whole editing surface for a version's content (§15.2) |
 | Person name (`providePublisherPersonName`) | No: authors are not named | Profile's component, through the host, app side | An author's name, by identity identifier |
 
 Required ports fail closed: a missing one is `PublisherCompositionError`, and a failing one `unavailable`, recording nothing. There is no in-memory or file store and no default type. `checkPublisherComposition()` checks every required port and the stored types at start-up.
@@ -303,7 +303,9 @@ Components, composables and pages live in `app/` and reach the server only throu
 
 ### 15.2 Administration
 
-Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; a generic edit form built from the type's JSON Schema (as Configuration's `ConfigurationValueField`), its Markdown fields in the host's editor or a plain text area; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
+Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; the editor slot (below) for creating and editing; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port.
+
+The publisher builds **no editing form**. Editing a version's content (title, summary, slug, address date, language and the type's fields, Markdown included) is the editor slot's: a component the host registers with `providePublisherEditor`, normally `content-editor`'s, given `type` (`PublisherEditorType`: the type's key, label, address rule, Markdown field paths and fields' JSON Schema) and `id`, and editing the content (`PublisherContentInput`) as its `v-model`. The screens save what it produces; the server checks every save. Without an editor, documents are shown with their status, actions, history and links, and are not created or edited on the screens; content still arrives through `importPublisherContent` and the host's own server code. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
 
 Deliberate pairings, which a host's theme must keep legible (`app/publisher-pairings.ts`): `pen-muted-default` on `fill-base-default` (hints, notes and definition terms), `edge-error-default` on `fill-input-default` (an invalid field's border), `edge-base-active` on `fill-base-default` (the focus indicator).
 

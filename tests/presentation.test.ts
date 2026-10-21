@@ -139,6 +139,12 @@ describe('pages and components', () => {
     expect(offending).toEqual([])
   })
 
+  it('build no editing form of their own: content is edited only through the host\'s editor slot', () => {
+    const offending = globSync('app/**/*.vue').filter(file => /<textarea|PublisherField|PublisherContentForm/.test(readFileSync(file, 'utf8')))
+    expect(offending).toEqual([])
+    expect(globSync('app/components/{PublisherField,PublisherContentForm}.vue')).toEqual([])
+  })
+
   it('never hand Markdown or any document text to v-html or innerHTML', () => {
     const offending = globSync('app/**/*.{vue,ts}').filter(file => /v-html|innerHTML|insertAdjacentHTML/.test(readFileSync(file, 'utf8')))
     expect(offending).toEqual([])
