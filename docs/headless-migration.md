@@ -14,7 +14,7 @@ Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blo
 |---|---|---|
 | Contract, server functions, storage, events, ports | Headless already | **Stays** |
 | Sites | Every document on a site | **Stays** |
-| HTTP API `/api/publisher/*` | Always on | **Stays**, with `publisher: { api: { enabled } }` to switch it off |
+| HTTP API `/api/publisher/*` | Always on | **Stays**, with `runtimeConfig.publisher.api.enabled` to switch it off |
 | `usePublisher()` | Data client, plus screen helpers | **Stays** as a typed client only |
 | Markdown dialect | The publisher's own (`markdown/`, `shared/markdown.ts`) | **Moves** to `nuxt4-layers/rich-text`, with profiles added |
 | Formatted fields | `markdownSchema()` and `markdownFields` in each type | **Changes:** fields use `rich-text`'s schema with a **profile** (inline, block or document); the publisher finds them from the schema |
@@ -40,7 +40,7 @@ Each step is a commit: its contract and tests first, then the code.
 2. **Safe trees in answers.** Replace `PublisherRendered.markdown` with `richText`, `{ path, profile, nodes }[]`, using `rich-text`'s tree, for formatted fields only. Tests: nothing unsafe ever appears in an answer. **Done.**
 3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots. **Done.**
 4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use. **Done.**
-5. **Switchable API.** Add `publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both.
+5. **Switchable API.** Add `runtimeConfig.publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both. **Done.**
 6. **Documents.** The contract's dialect section points at `rich-text`; §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; the guide, README, roadmap and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011.
 7. **Release.** Tag `v1.0.0`: contract version 1, headless.
 

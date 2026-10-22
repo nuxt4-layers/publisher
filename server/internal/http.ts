@@ -14,6 +14,7 @@ import { usePublisherSiteResolver, usePublisherSubjectResolver } from '../utils/
  * - Bodies and queries are parsed with strict schemas.
  * - The subject comes only from the host's resolver.
  * - Every handler is wrapped in `publisherHandler`.
+ * - The host may switch it all off (`runtimeConfig.publisher.api.enabled`).
  */
 
 export const PUBLISHER_API_PREFIX = '/api/publisher'
@@ -26,6 +27,26 @@ export function publisherHttpError(code: PublisherErrorCode, reason?: string) {
   if (reason && (code === 'conflict' || code === 'validation-failed') && CODE.test(reason) && reason.length <= 64) data.reason = reason
   return createError({ statusCode: PUBLISHER_ERROR_STATUS[code], statusMessage: code, data })
 }
+
+let apiEnabled = true
+
+/** Whether `runtimeConfig.publisher` turns the HTTP API on: on unless `api.enabled` is explicitly false. */
+export function publisherApiEnabledFrom(config: unknown): boolean {
+  const enabled = (config as { api?: { enabled?: unknown } } | null | undefined)?.api?.enabled
+  return enabled !== false && enabled !== 'false'
+}
+
+/** Set once at start-up by `server/plugins/publisher-api.ts`; tests set it directly. */
+export function setPublisherApiEnabled(enabled: boolean): void {
+  apiEnabled = enabled
+}
+
+/** A switched-off API answers as if it were absent: a plain 404, before any port is asked. */
+export function publisherApiAbsent() {
+  return createError({ statusCode: 404, statusMessage: 'Not Found' })
+}
+
+export const publisherApiEnabled = (): boolean => apiEnabled
 
 /** Translates anything thrown inside a handler into a contract error. */
 export function toHttpError(error: unknown) {
@@ -45,6 +66,7 @@ export function toHttpError(error: unknown) {
 /** Wraps a handler so that every failure leaves as a contract error. */
 export function publisherHandler<T>(run: (event: H3Event) => Promise<T>) {
   return defineEventHandler(async (event) => {
+    if (!apiEnabled) throw publisherApiAbsent()
     try {
       return await run(event)
     }
