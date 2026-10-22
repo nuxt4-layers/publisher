@@ -176,16 +176,18 @@ function issueCode(issues: readonly { message: string }[]): string | undefined {
   return issues.map(issue => issue.message).find(message => /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(message) && message.length <= 64)
 }
 
-/** Every string a formatted field's path leads to in a document's fields. */
-export function richTextValues(fields: unknown, path: string): string[] {
-  let values: unknown[] = [fields]
+/** Every string a formatted field's path leads to in a document's fields, each with its own path (`blocks[].body` → `blocks[0].body`). */
+export function richTextEntries(fields: unknown, path: string): { path: string, value: string }[] {
+  let entries: { path: string, value: unknown }[] = [{ path: '', value: fields }]
   for (const segment of path.split('.')) {
     const array = segment.endsWith('[]')
     const name = array ? segment.slice(0, -2) : segment
-    values = values.flatMap(value => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.hasOwn(value, name) ? [(value as Record<string, unknown>)[name]] : [])
-    if (array) values = values.flatMap(value => Array.isArray(value) ? value : [])
+    entries = entries.flatMap(({ path: at, value }) => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.hasOwn(value, name)
+      ? [{ path: at ? `${at}.${name}` : name, value: (value as Record<string, unknown>)[name] }]
+      : [])
+    if (array) entries = entries.flatMap(({ path: at, value }) => Array.isArray(value) ? value.map((item, index) => ({ path: `${at}[${index}]`, value: item })) : [])
   }
-  return values.filter((value): value is string => typeof value === 'string')
+  return entries.filter((entry): entry is { path: string, value: string } => typeof entry.value === 'string')
 }
 
 /** Rewrites, in place, every string a formatted field's path leads to. */
@@ -213,7 +215,7 @@ export function namedBy(declaration: PublisherTypeDeclaration, content: Publishe
   const assetIds = new Set<string>()
   const problems = new Set<string>()
   for (const field of declaration.richTextFields) {
-    for (const source of richTextValues(content.fields, field.path)) {
+    for (const { value: source } of richTextEntries(content.fields, field.path)) {
       if (UNSAFE_CHARACTERS.test(source.replace(/[\t\n]/g, ''))) problems.add('unsafe-characters')
       const checked = checkRichText(source, field)
       checked.documentIds.forEach(id => documentIds.add(id))
@@ -224,7 +226,7 @@ export function namedBy(declaration: PublisherTypeDeclaration, content: Publishe
   return { documentIds: [...documentIds], assetIds: [...assetIds], problems: [...problems] }
 }
 
-/** Parses one version's content against the envelope and the type, as every save and import does (§6.4). */
+/** Parses one version's content against the envelope and the type, as every save and import does (§6.5). */
 export function parseContent(declaration: PublisherTypeDeclaration, input: unknown): PublisherContent {
   const envelope = publisherContentSchema.safeParse(input)
   if (!envelope.success) throw new PublisherFailure('validation-failed', issueCode(envelope.error.issues))

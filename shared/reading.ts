@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { publisherDocumentSchema } from './documents'
 import { identifierSchema, instantSchema } from './identifiers'
 import { PUBLISHER_ORDERS, typeKeySchema } from './types'
-import { RICH_TEXT_MAX_LENGTH } from '@nuxt4-layers/rich-text'
+import { RICH_TEXT_PROFILES, richTextTreeSchema } from '@nuxt4-layers/rich-text'
 import { siteIdSchema, sitePathSchema } from './values'
 
 /** Reading published documents (docs/contracts.md §7, §8). */
@@ -29,8 +29,15 @@ export type PublisherHead = z.infer<typeof publisherHeadSchema>
 export const publisherRenderedSchema = z.strictObject({
   document: publisherDocumentSchema,
   links: publisherResolvedLinksSchema,
-  /** The type's formatted fields' sources, in the order it declares them, for the generic renderer. */
-  markdown: z.array(z.string().max(RICH_TEXT_MAX_LENGTH)).max(1000),
+  /**
+   * Each formatted field's safe tree, in the order the type declares them: its
+   * path in `fields` (`blocks[0].body`), its profile, and its nodes. Never HTML.
+   */
+  richText: z.array(z.strictObject({
+    path: z.string().max(400),
+    profile: z.enum(RICH_TEXT_PROFILES),
+    nodes: richTextTreeSchema,
+  })).max(1000),
   head: publisherHeadSchema,
   preview: z.boolean(),
 })
