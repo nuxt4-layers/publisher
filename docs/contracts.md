@@ -120,7 +120,7 @@ Every save, restore and import is a new version, kept with who saved it, when, a
 
 ## 6. Rich text
 
-Formatted fields use the platform's one format, [`@nuxt4-layers/rich-text`](https://github.com/nuxt4-layers/rich-text/blob/e0b07a2f0754ac0b96f3c11a42346f63690c8887/README.md) (ADR-0011), pinned at `v1.0.0`. Every other string is plain and never read as rich text.
+Formatted fields use the platform's one format, [`@nuxt4-layers/rich-text`](https://github.com/nuxt4-layers/rich-text/blob/e0b07a2f0754ac0b96f3c11a42346f63690c8887/README.md) (ADR-0011), pinned at `v2.0.0`. Every other string is plain and never read as rich text.
 
 ### 6.1 Profiles
 
@@ -151,7 +151,7 @@ A rendered answer carries each formatted field as `richText`: `{ path, profile, 
 
 ### 6.5 Checks on save
 
-Every formatted field of a version is normalised (NFC, `\n` line ends) and checked with `checkRichText` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
+Every formatted field of a version is normalised (NFC, `\n` line ends) and checked by its `richTextSchema` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
 
 ## 7. Addresses and links
 

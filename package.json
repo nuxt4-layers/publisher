@@ -36,7 +36,7 @@
     "test:e2e": "pnpm build:playground && playwright test"
   },
   "dependencies": {
-    "@nuxt4-layers/rich-text": "git+https://github.com/nuxt4-layers/rich-text.git#v1.0.0",
+    "@nuxt4-layers/rich-text": "git+https://github.com/nuxt4-layers/rich-text.git#v2.0.0",
     "zod": "^4.6.5"
   },
   "peerDependencies": {

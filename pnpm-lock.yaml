@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@nuxt4-layers/rich-text':
-        specifier: git+https://github.com/nuxt4-layers/rich-text.git#v1.0.0
-        version: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887
+        specifier: git+https://github.com/nuxt4-layers/rich-text.git#v2.0.0
+        version: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/68ac5b008e60ae0150171324eedeb22eb37110cc
       zod:
         specifier: ^4.6.5
         version: 4.6.7
@@ -569,9 +569,9 @@ packages:
       nuxt: ^4.6.2
       vite: ^8.3.4
 
-  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887':
-    resolution: {tarball: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887}
-    version: 1.0.0
+  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/68ac5b008e60ae0150171324eedeb22eb37110cc':
+    resolution: {tarball: https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/68ac5b008e60ae0150171324eedeb22eb37110cc}
+    version: 2.0.0
     engines: {node: '>=22'}
 
   '@nuxt4-layers/theme-manager@https://codeload.github.com/nuxt4-layers/theme-manager/tar.gz/934d1bd33e0731aafea0d454857dc8fbb756ccb2':
@@ -4262,7 +4262,7 @@ snapshots:
       - rolldown
       - unplugin
 
-  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/e0b07a2f0754ac0b96f3c11a42346f63690c8887':
+  '@nuxt4-layers/rich-text@https://codeload.github.com/nuxt4-layers/rich-text/tar.gz/68ac5b008e60ae0150171324eedeb22eb37110cc':
     dependencies:
       mdast-util-from-markdown: 2.1.0
       mdast-util-gfm-strikethrough: 2.0.1
