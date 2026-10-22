@@ -1,5 +1,7 @@
 # Headless Migration Plan
 
+> **Status:** complete, released in 1.0.0.
+
 > **In short:** keep every service, remove every screen, and hand rich text to the shared `rich-text` library. The publisher is not yet released, so this all happens before 1.0.0, with no deprecation period.
 
 Governed by [ADR-0009](https://github.com/nuxt4-layers/platform-architecture/blob/667e5310a66c56327f0ef80d43ce01b573ce6d86/docs/decisions/ADR-0009-headless-capability-layers.md) (headless layers) and [ADR-0011](https://github.com/nuxt4-layers/platform-architecture/blob/667e5310a66c56327f0ef80d43ce01b573ce6d86/docs/decisions/ADR-0011-shared-rich-text-and-configurable-copy.md) (shared rich text). The result is described in the [guide](guide.md).
@@ -41,8 +43,8 @@ Each step is a commit: its contract and tests first, then the code.
 3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots. **Done.**
 4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use. **Done.**
 5. **Switchable API.** Add `runtimeConfig.publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both. **Done.**
-6. **Documents.** The contract's dialect section points at `rich-text`; §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; the guide, README, roadmap and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011.
-7. **Release.** Tag `v1.0.0`: contract version 1, headless.
+6. **Documents.** The contract's dialect section points at `rich-text`; §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; the guide, README, roadmap and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011. **Done.**
+7. **Release.** Tag `v1.0.0`: contract version 1, headless. **Done.**
 
 ## Risks
 

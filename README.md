@@ -4,7 +4,7 @@ Nuxt 4 foundation layer for publishing: which version of which document is publi
 
 A headless platform foundation layer (ADR-0009): it draws nothing. It reaches Authorisation, the approvals process, the asset store and the title template only through ports the host supplies, and imports no other layer, only the stateless `rich-text` library.
 
-**Status:** 1.0.0, contract version 1 ([guide](docs/guide.md), [contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md), [headless migration plan](docs/headless-migration.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API and a typed client, with every document on a site, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
+**Status:** 1.0.0, contract version 1 ([guide](docs/guide.md), [contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md), [headless migration, complete](docs/headless-migration.md)): headless: the lifecycle, rich text checked by profile, addresses and links, listings and feeds, personal data, export and import, a switchable HTTP API and a typed client, with every document on a site, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
 
 ## Owns
 
