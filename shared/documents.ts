@@ -26,7 +26,7 @@ export const publisherContentSchema = z.strictObject({
   slug: slugSchema.nullable().default(null),
   /** Required for `date-slug` addresses; the first publishing date when omitted. */
   addressDate: addressDateSchema.nullable().default(null),
-  /** Opaque identity identifiers; names are the host's (§15). */
+  /** Opaque identity identifiers; names are Profile's, asked by the host's screens (§15). */
   authors: z.array(identifierSchema).max(20).default([]),
 })
 export type PublisherContent = z.output<typeof publisherContentSchema>

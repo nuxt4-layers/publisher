@@ -38,7 +38,7 @@ function code(file: string): string {
 const RICH_TEXT = '@nuxt4-layers/rich-text'
 const contractFiles = files('shared', /\.ts$/)
 /** The layer's own source: everything a host receives except the examples. */
-const layerFiles = [...files('app'), ...files('server'), ...files('shared'), ...files('modules'), 'nuxt.config.ts']
+const layerFiles = [...files('app'), ...files('server'), ...files('shared'), 'nuxt.config.ts']
 
 /**
  * Contract version 1 (docs/contracts.md §17). Removing or narrowing any of

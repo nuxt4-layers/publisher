@@ -116,9 +116,8 @@ export type PublisherTypeDeclaration = z.output<typeof publisherTypeDeclarationS
 export type PublisherRegistry = ReadonlyMap<string, PublisherTypeDeclaration>
 
 /**
- * What the editor slot is told about a type (docs/contracts.md §15.2): enough
- * to build its form. The editor edits a version's content
- * (`PublisherContentInput`) as its `v-model`; the server checks every save.
+ * What an editor is told about a type (`/api/publisher/admin/types`):
+ * enough to build its form. The server checks every save.
  */
 export interface PublisherEditorType {
   type: string

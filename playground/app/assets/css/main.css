@@ -1,3 +1,0 @@
-/* Host stylesheet: Theme Manager's semantic vocabulary plus the layer's sources. */
-@import "@nuxt4-layers/theme-manager/presentation.css";
-@import "../../../../tailwind.css";

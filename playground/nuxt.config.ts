@@ -1,7 +1,5 @@
-// Composition harness: proves the layer composes in a host, with Theme
-// Manager as a peer. Not published.
+// Composition harness: proves the layer composes, headless, in a host. Not published.
 export default defineNuxtConfig({
-  extends: ['..', '@nuxt4-layers/theme-manager'],
-  css: ['~/assets/css/main.css'],
+  extends: ['..'],
   compatibilityDate: '2026-06-30',
 })
