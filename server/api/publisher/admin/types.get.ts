@@ -5,7 +5,7 @@ import { usePublisherRegistry } from '../../../utils/publisher-composition'
 
 /**
  * GET /api/publisher/admin/types — the registered types the subject holds
- * any permission on, with what the administration pages need to build their
+ * any permission on, with what a host's screens and editor need to build their
  * forms. For the user experience only: every action is decided again.
  */
 export default publisherHandler(async (event) => {

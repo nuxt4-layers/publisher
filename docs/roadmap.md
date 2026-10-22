@@ -59,3 +59,8 @@ The layer was specified and tested before it was built, phase by phase on one pu
 
 - `runtimeConfig.publisher.api.enabled` (default on; `NUXT_PUBLISHER_API_ENABLED=false`) switches `/api/publisher/*` off: every request answers a plain 404, before any port or origin check.
 - Green: `tests/http.test.ts` "switching the API off", and the built playground with the variable set both ways.
+
+## Headless migration, steps 6 and 7: documents and release (done)
+
+- The contract, threat model, guide, README and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011; the migration plan is complete.
+- Released as 1.0.0: contract version 1, headless.

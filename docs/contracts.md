@@ -343,5 +343,6 @@ Contract version 1 (`PUBLISHER_CONTRACT_VERSION`), frozen for 1.x once 1.0.0 is 
 8. **Backlinks by acknowledgement.** Unpublishing a linked document is allowed, but only once the editor has seen how many documents link to it.
 9. **The access port is type-wide.** The publisher asks about a permission, a type and optionally a document; which group or tenant decides is the host's mapping to Authorisation.
 10. **Sites from the start.** Every document belongs to a site (§3.4), so a host serving several tenants composes the layer once, and a host with one site answers a constant. Adding a site scope after 1.0.0 would have narrowed every query and port, a contract version 2.
-11. **Rich text to a safe tree.** `rich-text`'s parser answers its own nodes, rendered to VNodes; there is no sanitiser to get wrong because markup never reaches the DOM.
+11. **Rich text as a safe tree.** Answers carry `rich-text`'s nodes, never HTML; there is no sanitiser to get wrong because the layer never produces markup.
 12. **No document type in the layer.** Not even for its own tests or playground: both register types defined in `tests/support/types.ts`.
+13. **Headless (ADR-0009).** The layer draws nothing, so any front end can use it and a composed application looks like one product. The HTTP API may be switched off for hosts that call only the server functions.
