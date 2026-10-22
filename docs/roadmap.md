@@ -48,3 +48,9 @@ The layer was specified and tested before it was built, phase by phase on one pu
 
 - A rendered answer carries `richText`, each formatted field's `{ path, profile, nodes }`, in place of its sources (`markdown`).
 - Green: `tests/rich-text.test.ts` "answers formatted fields as safe trees", and the browser tests.
+
+## Headless migration, steps 3 and 4: headless, screens removed (done)
+
+- `tests/headless.test.ts` replaces the presentation tests: no screens, routes, components, slots, styles, display wording or design-system dependency; `usePublisher()` holds data and actions only.
+- Removed: the pages, components, renderers, slots, routes module, wording, class map, pairings, `tailwind.css`, Theme Manager, Playwright and the browser tests. The playground is a server-only host.
+- Also: `rich-text` pinned at `v2.0.0`, which normalises formatted text itself. Next: [step 5](headless-migration.md), the switchable API.

@@ -1,10 +1,10 @@
 # @nuxt4-layers/publisher
 
-Nuxt 4 foundation layer for publishing: which version of which document is published at which address, for whom, now. It owns the lifecycle every published document shares (drafts, versions and history; review, approval and moderation; scheduled publishing and unpublishing; addresses, redirects and links between documents; safe Markdown; listings and feeds) and knows nothing about what any document is. Every document type is the host's registration.
+Nuxt 4 foundation layer for publishing: which version of which document is published at which address, for whom, now. It owns the lifecycle every published document shares (drafts, versions and history; review, approval and moderation; scheduled publishing and unpublishing; addresses, redirects and links between documents; safe rich text; listings and feeds) and knows nothing about what any document is. Every document type is the host's registration.
 
-A platform foundation layer. It reaches Authorisation, the approvals process, the asset store, the title template, the editor and people's names only through ports the host supplies, and never imports another layer.
+A headless platform foundation layer (ADR-0009): it draws nothing. It reaches Authorisation, the approvals process, the asset store and the title template only through ports the host supplies, and imports no other layer, only the stateless `rich-text` library.
 
-**Status:** 1.0.0, contract version 1 ([guide](docs/guide.md), [contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md), [headless migration plan](docs/headless-migration.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API, the public catch-all route and the administration screens, with every document on a site and editing left to `content-editor` through the editor slot, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
+**Status:** 1.0.0, contract version 1 ([guide](docs/guide.md), [contract](docs/contracts.md), [threat model](docs/threat-model.md), [roadmap](docs/roadmap.md), [headless migration plan](docs/headless-migration.md)): the lifecycle, the Markdown dialect, addresses and links, listings and feeds, personal data, export and import, the HTTP API and a typed client, with every document on a site, proven against types defined only in the tests. Composition into an application happens in `steve-r-lewis/platform-test-harness`.
 
 ## Owns
 
@@ -19,11 +19,11 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 |---|---|
 | Any particular document type (pages, posts, menus, reviews …) | The host, by registration |
 | Site name, legal entity, contacts, SEO defaults, `security.txt` | The host, from Configuration |
-| The site shell, contact forms and sending mail | The host |
+| The site shell, routes, every screen, contact forms and sending mail | The host, a kit or `ui` |
 | Images and files | The host's asset store: the publisher holds references only |
-| People's names | Profile, through the host's person-name component |
+| People's names | Profile, asked by the host's screens |
 | Who may do what, and approvals | The IAM suite, through the access-decision and approval ports |
-| Editing content: forms, Markdown editing, authoring | `content-editor`, through the editor slot; the publisher builds no editing form |
+| Editing content: forms, rich-text editing, authoring | `content-editor`, or the host's own form controls; the server checks every save |
 
 ## Interfaces
 
@@ -31,14 +31,13 @@ A platform foundation layer. It reaches Authorisation, the approvals process, th
 |---|---|---|
 | Consumes from the host | `providePublisherDocumentTypes` | The document types: fields (formatted ones by profile), address, listing, lifecycle, personal data |
 | Consumes from the host | Database, subject resolver, access decision, approval, clock, event sink, asset resolver, title template | Storage under ADR-0002; the signed-in subject; permissions; consent to publish; time; events; images; titles |
-| Consumes from the host (app side) | Renderer per type, editor, person name | Drawing documents, editing content, naming authors |
-| Provides to pages | `usePublisher()`, the `publisher-document` catch-all route, `PublisherMarkdown`, administration pages | Rendering, metadata, editing and moderation |
+| Provides to the host's screens | The HTTP API and `usePublisher()`, its typed client | Data and actions; content as `rich-text` safe trees |
 | Provides to the host's server | `getPublishedDocument`, `listPublishedDocuments`, feeds, sitemap entries, export and import, personal-data export and erasure, maintenance | Reading, seeding and data-subject requests |
 | Publishes | `publisher.*` events | Identifiers, codes and times only |
 
 ## Development
 
-`pnpm install`, `pnpm dev:prepare`, then `pnpm check` (type check and tests). Database suites need `PUBLISHER_TEST_DATABASE_URL`, the admin URL of a disposable PostgreSQL 16. `pnpm test:e2e` builds the playground and runs the browser tests. `python3 scripts/check_markdown.py` checks the documentation.
+`pnpm install`, `pnpm dev:prepare`, then `pnpm check` (type check and tests). Database suites need `PUBLISHER_TEST_DATABASE_URL`, the admin URL of a disposable PostgreSQL 16. `python3 scripts/check_markdown.py` checks the documentation.
 
 ## Governing decisions and specifications
 

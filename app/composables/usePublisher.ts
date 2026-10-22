@@ -13,7 +13,7 @@ import type {
 } from '../../shared/contracts'
 import { PUBLISHER_ERROR_CODES } from '../../shared/contracts'
 
-/** A registered type as the administration screens see it; the editor slot is given its `PublisherEditorType` part. */
+/** A registered type as `/api/publisher/admin/types` answers it, for the host's own screens and editor. */
 export interface PublisherTypeView extends PublisherEditorType {
   listing: { listable: boolean, order: string, filterable: string[] }
   lifecycle: { approval: boolean, moderation: boolean, scheduling: boolean }
@@ -38,9 +38,9 @@ export function publisherErrorOf(error: unknown): PublisherErrorBody | null {
 }
 
 /**
- * The layer's only way to the server, for pages and components. For the
- * user experience only: it decides nothing, and every request is decided
- * again on the server.
+ * A typed client for the HTTP API, for the host's own screens: data and
+ * actions only. It decides nothing; every request is decided again on the
+ * server.
  */
 export function usePublisher() {
   const request = useRequestFetch()
@@ -57,56 +57,5 @@ export function usePublisher() {
     moderation: () => request<PublisherListing>(`${base}/admin/moderation`),
     create: (type: string, content: PublisherContentInput) => $fetch<PublisherDocument>(admin, { method: 'POST', body: { type, content } }),
     act: (documentId: string, action: PublisherActionRequestInput) => $fetch<PublisherDocument>(`${admin}/${documentId}/actions`, { method: 'POST', body: action }),
-  }
-}
-
-/**
- * Shared state for an action: pending, the error to show and its code.
- * `disabled` stays true until hydrated, so a form never submits natively.
- */
-export function usePublisherAction() {
-  const text = usePublisherText()
-  const pending = ref(false)
-  const hydrated = ref(false)
-  onMounted(() => { hydrated.value = true })
-  const disabled = computed(() => pending.value || !hydrated.value)
-  const error = ref<string | null>(null)
-  const code = ref<PublisherErrorCode | null>(null)
-
-  function messageFor(body: PublisherErrorBody | null): string {
-    if (!body) return text('publisher.error.unavailable')
-    if (body.reason && hasPublisherMessage(`publisher.reason.${body.reason}`)) return text(`publisher.reason.${body.reason}`)
-    return text(`publisher.error.${body.code}`)
-  }
-
-  async function run<T>(action: () => Promise<T>): Promise<T | null> {
-    pending.value = true
-    error.value = null
-    code.value = null
-    try {
-      return await action()
-    }
-    catch (failure) {
-      const body = publisherErrorOf(failure)
-      code.value = body?.code ?? 'unavailable'
-      error.value = messageFor(body)
-      return null
-    }
-    finally {
-      pending.value = false
-    }
-  }
-
-  return { pending, disabled, error, code, run, messageFor, text }
-}
-
-/** The host's routes for the layer's pages (`publisher` in nuxt.config.ts). */
-export function usePublisherRoutes(): { documents: string, document: string, moderation: string, signIn: string } {
-  const routes = (useRuntimeConfig().public as { publisher?: { routes?: Record<string, string> } }).publisher?.routes ?? {}
-  return {
-    documents: routes.documents ?? '/publisher',
-    document: routes.document ?? '/publisher/documents/:documentId',
-    moderation: routes.moderation ?? '/publisher/moderation',
-    signIn: routes.signIn ?? '/sign-in',
   }
 }

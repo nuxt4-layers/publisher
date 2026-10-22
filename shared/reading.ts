@@ -14,7 +14,7 @@ export const publisherResolvedLinksSchema = z.strictObject({
 })
 export type PublisherResolvedLinks = z.infer<typeof publisherResolvedLinksSchema>
 
-/** Metadata the public route sets (§15.1). */
+/** Metadata for the host's page: title, description, canonical path and times (§15). */
 export const publisherHeadSchema = z.strictObject({
   title: z.string(),
   description: z.string().nullable(),

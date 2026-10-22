@@ -38,8 +38,8 @@ Each step is a commit: its contract and tests first, then the code.
 
 1. **Adopt `rich-text`.** Depend on it; replace `markdownSchema()`, `markdownFields` and the dialect's constants with its schema and profiles; check every save against each formatted field's profile; remove `markdown/` and `shared/markdown.ts`. Tests: a formatted field refuses anything beyond its profile, by any route, including import; a plain field is never read as rich text. **Done.**
 2. **Safe trees in answers.** Replace `PublisherRendered.markdown` with `richText`, `{ path, profile, nodes }[]`, using `rich-text`'s tree, for formatted fields only. Tests: nothing unsafe ever appears in an answer. **Done.**
-3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots.
-4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use.
+3. **A headless test.** Replace `tests/presentation.test.ts` with one that fails while the layer ships pages, components, routes, styles, display wording or slots. **Done.**
+4. **Remove the screens.** Delete `app/` except the typed client, `modules/publisher-routes.ts`, `tailwind.css`, the Theme Manager dependency, Playwright and `tests/e2e/`. The playground becomes a server-only host that the HTTP tests can use. **Done.**
 5. **Switchable API.** Add `publisher.api.enabled` (default on); when off, `/api/publisher/*` answers 404. Test both.
 6. **Documents.** The contract's dialect section points at `rich-text`; §15 becomes "Headless surface"; the threat model's XSS and framing controls point at the safe tree and the host; the guide, README, roadmap and `CLAUDE.md` follow ADR-0009, ADR-0010 and ADR-0011.
 7. **Release.** Tag `v1.0.0`: contract version 1, headless.

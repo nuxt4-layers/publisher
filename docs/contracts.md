@@ -11,13 +11,13 @@ The publisher answers one question: **which version of which document is publish
 | Drafts, versions, history, review, moderation, scheduling, addresses, redirects, links between documents, safe rich text, listings, feeds | **Publisher** | §4 to §8 |
 | What a document is: its fields, address rule, listing, lifecycle options | The host | A registered type declaration (§3) |
 | Site name, legal entity, contacts, SEO defaults | The host, from `nuxt4-layers/configuration` | The title-template port (§11); nothing else |
-| The site shell: header, footer, layout | The host | Never. The layer's pages render inside the host's layout |
+| The site shell, routes and every screen | The host, a kit or `ui` | Never. The layer is headless (§15) |
 | Contact forms and sending mail | The host, or a later forms service | Never. A form may hand a submission to `receivePublisherSubmission` (§5.3) |
 | `security.txt` | The host, from Configuration's `contact.security` | Never |
 | Images and files | The host's asset store | `asset:` references, resolved through the asset port (§6.2) |
-| People's names | The host's person-name component (Profile) | Opaque identity identifiers only (§4); names through the person-name slot (§15) |
+| People's names | Profile | Opaque identity identifiers only (§4); the host's screens ask Profile (§15) |
 | Who may do what | The IAM suite | The access-decision and approval ports (§11), on the permissions of §10 |
-| Editing content: forms, Markdown editing, authoring | `nuxt4-layers/content-editor` | The editor slot (§15.2). The publisher builds no editing form; without an editor, its screens show documents and their lifecycle read-only |
+| Editing content: forms, rich-text editing, authoring | `nuxt4-layers/content-editor`, or the host's own form controls | Never. The server checks every save (§6.5) |
 
 ## 2. What the publisher holds
 
@@ -120,7 +120,7 @@ Every save, restore and import is a new version, kept with who saved it, when, a
 
 ## 6. Rich text
 
-Formatted fields use the platform's one format, [`@nuxt4-layers/rich-text`](https://github.com/nuxt4-layers/rich-text/blob/e0b07a2f0754ac0b96f3c11a42346f63690c8887/README.md) (ADR-0011), pinned at `v1.0.0`. Every other string is plain and never read as rich text.
+Formatted fields use the platform's one format, [`@nuxt4-layers/rich-text`](https://github.com/nuxt4-layers/rich-text/blob/e0b07a2f0754ac0b96f3c11a42346f63690c8887/README.md) (ADR-0011), pinned at `v2.0.0`. Every other string is plain and never read as rich text.
 
 ### 6.1 Profiles
 
@@ -141,9 +141,9 @@ Raw HTML is never markup: it is the text written. Only `https:`, `mailto:`, `doc
 | `[text](doc:<uuid>)` | A link to the document's current address; its text alone when it is not published, or has no address |
 | `![alt](asset:<id>)` | An `<img>` at the address the asset port answers, with the `alt`; nothing when the asset is unknown |
 
-### 6.3 Rendering
+### 6.3 Drawing
 
-`PublisherMarkdown` parses a source with `parseRichText` for its field's profile and renders the safe tree to VNodes. Nothing reaches `v-html`, `innerHTML` or the DOM as markup anywhere in the layer (`tests/presentation.test.ts`). Document links render with the addresses the server resolved for that answer (`links`).
+The publisher draws nothing (§15). Readers receive safe trees, never HTML; whoever draws them uses `ui` or its own renderer, with the addresses the server resolved for that answer (`links`).
 
 ### 6.4 In answers
 
@@ -151,7 +151,7 @@ A rendered answer carries each formatted field as `richText`: `{ path, profile, 
 
 ### 6.5 Checks on save
 
-Every formatted field of a version is normalised (NFC, `\n` line ends) and checked with `checkRichText` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
+Every formatted field of a version is normalised (NFC, `\n` line ends) and checked by its `richTextSchema` on create, save, restore, submission and import. Refused (`validation-failed`): anything beyond the profile (`not-in-profile`), a second paragraph in an inline field (`more-than-one-paragraph`), control characters (`unsafe-characters`), an image without alt text (`image-without-alt`) or from anywhere but `asset:` (`image-not-asset`), and any image when the host supplies no asset port (`images-unavailable`). Links are not refused: a link to an unpublished document renders as text until it is published.
 
 ## 7. Addresses and links
 
@@ -222,9 +222,6 @@ A type's `lifecycle.risks` may raise any of them; never lower (refused at start-
 | `PublisherEventSink` | For the relay | Host | Where `relayPublisherOutbox` sends events (§12) |
 | `PublisherAssetResolver` | No: images are refused without it | The host's asset store | Each `asset:` id's address, or `null` |
 | `PublisherTitleTemplate` | No: a document's title alone | Host, e.g. from Configuration's `seo.title-template` | Page and feed titles |
-| Renderer per type (`providePublisherRenderer`) | No: the generic renderer | Host, app side | The component that draws a document of that type |
-| Editor (`providePublisherEditor`) | No: without it, documents are not edited on the layer's screens | `content-editor`, through the host, app side | The whole editing surface for a version's content (§15.2) |
-| Person name (`providePublisherPersonName`) | No: authors are not named | Profile's component, through the host, app side | An author's name, by identity identifier |
 
 Required ports fail closed: a missing one is `PublisherCompositionError`, and a failing one `unavailable`, recording nothing. There is no in-memory or file store and no default type. `checkPublisherComposition()` checks every required port and the stored types at start-up.
 
@@ -300,23 +297,29 @@ Export, import, submissions, erasure, maintenance and the relay are never endpoi
 | `conflict` | 409 | A rule refused it (`PUBLISHER_CONFLICT_REASONS`) |
 | `unavailable` | 503 | Database, registration, port or clock failure. Fails closed |
 
-## 15. Presentation
+## 15. Headless surface
 
-Components, composables and pages live in `app/` and reach the server only through the layer's composable, `usePublisher()`. They decide nothing. Text comes from `app/publisher-messages.ts` through `usePublisherText()`; hosts override wording in `app.config.ts` under `publisher.messages` (`publisher.language` names their language, for the screens that show only them), and a type's own words come from its `label`. Published Markdown carries no classes; `tailwind.css` underlines its links and marks its lists. Styling uses only Theme Manager's SemanticPresentationTheme vocabulary (`publisherClasses`); hosts add `@nuxt4-layers/publisher/tailwind.css` to their stylesheet.
+The publisher draws nothing (ADR-0009): no pages, routes, components, slots, styles or display wording. `tests/headless.test.ts` holds it to that.
 
-### 15.1 Public
+| It offers | For |
+|---|---|
+| The contract (`./contracts`) | Types, schemas and the lifecycle table |
+| Server functions (§13) | Every task, for the host's server |
+| The HTTP API (§14) | The same tasks, for browsers and other services |
+| `usePublisher()` | A typed client for the host's own screens: data and actions only; `publisherErrorOf` reads a failure's code |
+| Safe trees (§6.4), feeds and sitemap entries (§8) | Content and data formats that are safe to draw |
+| Events (§12) | What happened |
 
-- One named catch-all route, `publisher-document`, registered by `modules/publisher-routes.ts` (`publisher: { document: { enabled } }`), renders whatever `resolve` answers: a document through its type's renderer, a 301 to a redirect, or the designed not-found component (`PublisherNotFound`) with status 404. A host's own routes take precedence over it.
-- The route sets the title (through the title template), description (the summary), canonical URL, `og:title`, `og:description`, `og:type` (`article`), `og:url`, `article:published_time` and `article:modified_time`, and `noindex` on a preview, which is marked as one.
-- `PublisherDocument` draws a document through the renderer the host registered for its type, or the generic renderer (`PublisherGenericRenderer`: title, summary, then each formatted field's safe tree, from the rendered answer's `richText`). `PublisherMarkdown` draws a safe tree, or a source for a profile, safely anywhere. Authors are named only through the person-name slot.
+The host, a kit or `ui` draws everything:
 
-### 15.2 Administration
-
-Screens registered by the module (`publisher: { administration: { enabled, paths: { documents, document, moderation } }, signIn }`, named `publisher-admin-*`; by default `/publisher`, `/publisher/documents/:documentId` and `/publisher/moderation`): documents by type with search and filters; the editor slot (below) for creating and editing; preview, submit, approve status, publish, schedule, unpublish (showing the links that point at the document), archive; history and restore; the moderation queue. Every action is decided by the server through the access-decision port.
-
-The publisher builds **no editing form**. Editing a version's content (title, summary, slug, address date, language and the type's fields, Markdown included) is the editor slot's: a component the host registers with `providePublisherEditor`, normally `content-editor`'s, given `type` (`PublisherEditorType`: the type's key, label, address rule, Markdown field paths and fields' JSON Schema) and `id`, and editing the content (`PublisherContentInput`) as its `v-model`. The screens save what it produces; the server checks every save. Without an editor, documents are shown with their status, actions, history and links, and are not created or edited on the screens; content still arrives through `importPublisherContent` and the host's own server code. The pages are never framed, cached or sent as a Referer. Every public and administration page has one `<main>` and passes axe (WCAG 2.2 AA) in light and dark mode.
-
-Deliberate pairings, which a host's theme must keep legible (`app/publisher-pairings.ts`): `pen-muted-default` on `fill-base-default` (hints, notes and definition terms), `edge-error-default` on `fill-input-default` (an invalid field's border), `edge-base-active` on `fill-base-default` (the focus indicator).
+| The host's screens | Do |
+|---|---|
+| Routes | Ask `resolve` what an address holds; answer a redirect with 301 and a missing or hidden document with 404 |
+| Metadata | Set title, description, canonical URL, Open Graph and `noindex` on a preview from the answer's `head` |
+| Content | Draw each `richText` tree with `ui`, links through the answer's `links`; never as HTML |
+| Editing | Use `content-editor`, or plain form controls; the server checks every save |
+| Names | Ask Profile for an author's name by identity identifier |
+| Administration | Never framed, cached or sent as a Referer; one `<main>` per screen; accessibility tested in light and dark mode |
 
 ## 16. Export and import
 
