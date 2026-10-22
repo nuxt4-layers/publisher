@@ -9,7 +9,7 @@ This guide describes the publisher once it is headless ([ADR-0009](https://githu
 | Service | For |
 |---|---|
 | **Server functions** | Every task: create, save, submit, publish, schedule, archive, restore, moderate, read, list, export |
-| **HTTP API** (`/api/publisher/*`) | The same tasks for browsers and other services; can be switched off |
+| **HTTP API** (`/api/publisher/*`) | The same tasks for browsers and other services; switch it off with `NUXT_PUBLISHER_API_ENABLED=false` |
 | **A typed client** (`usePublisher()`) | Calling the HTTP API from your own screens: data and actions only |
 | **Safe content** | Rich text returned as `rich-text`'s safe tree, which your components draw; never as HTML |
 | **Feeds and sitemap entries** | RSS, Atom, and paths for your `sitemap.xml` |

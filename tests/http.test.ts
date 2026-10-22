@@ -2,9 +2,9 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { EventHandler, H3Event } from 'h3'
-import { createApp, createRouter, defineEventHandler, getRequestHeader, toWebHandler } from 'h3'
+import { createApp, createRouter, getRequestHeader, toWebHandler } from 'h3'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { originRejected, publisherHttpError } from '../server/internal/http'
+import { publisherApiEnabledFrom, setPublisherApiEnabled } from '../server/internal/http'
 import { clearPublisherComposition, providePublisherSiteResolver, providePublisherSubjectResolver } from '../server/utils/publisher-composition'
 import { createPublisherDocument, receivePublisherSubmission, transitionPublisherDocument } from '../server/utils/publisher-server'
 import { hasDatabase, requireDatabaseInCi } from './support/database'
@@ -53,6 +53,49 @@ describe('the /api/publisher endpoints', () => {
   })
 })
 
+/** Mounts every endpoint behind the layer's own middleware, as Nitro does. */
+async function mount(): Promise<(request: Request) => Promise<Response>> {
+  const app = createApp()
+  const router = createRouter()
+  app.use((await import('../server/middleware/publisher-origin')).default)
+  for (const endpoint of endpointFiles()) {
+    const module = await import(endpoint.file) as { default: EventHandler }
+    router[endpoint.method as 'get' | 'post'](endpoint.route, module.default)
+  }
+  app.use(router)
+  return toWebHandler(app)
+}
+
+describe('switching the API off (runtimeConfig.publisher.api.enabled)', () => {
+  afterAll(() => setPublisherApiEnabled(true))
+
+  it('is on by default, and off only for an explicit false', () => {
+    expect(publisherApiEnabledFrom(undefined)).toBe(true)
+    expect(publisherApiEnabledFrom({})).toBe(true)
+    expect(publisherApiEnabledFrom({ api: { enabled: true } })).toBe(true)
+    expect(publisherApiEnabledFrom({ api: { enabled: false } })).toBe(false)
+    expect(publisherApiEnabledFrom({ api: { enabled: 'false' } })).toBe(false)
+  })
+
+  it('answers every endpoint 404 when off, as if absent, before any port is asked or origin checked', async () => {
+    clearPublisherComposition()
+    const handler = await mount()
+    const send = (endpoint: string, origin?: string) => {
+      const [method, route] = endpoint.split(' ') as [string, string]
+      const path = route.replace(/:documentId/, '01928c4e-0000-7000-8000-000000000001').replace(/:type/, 'bulletin')
+      return handler(new Request(`http://site.test${path}`, { method, headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) }, body: method === 'POST' ? '{}' : undefined }))
+    }
+    setPublisherApiEnabled(true)
+    expect((await send('GET /api/publisher/resolve')).status).not.toBe(404)
+    setPublisherApiEnabled(false)
+    for (const endpoint of ENDPOINTS) {
+      const response = await send(endpoint, endpoint.startsWith('POST') ? 'https://elsewhere.test' : undefined)
+      expect(response.status, endpoint).toBe(404)
+      expect(await response.text(), endpoint).not.toMatch(/publisher\.error|"code"/)
+    }
+  })
+})
+
 describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQL)', () => {
   let harness: Harness
   let world: World
@@ -86,17 +129,7 @@ describe.skipIf(!hasDatabase)('the /api/publisher endpoints over HTTP (PostgreSQ
 
   beforeAll(async () => {
     harness = await Harness.open()
-    const app = createApp()
-    const router = createRouter()
-    app.use(defineEventHandler((event) => {
-      if (originRejected(event)) throw publisherHttpError('forbidden')
-    }))
-    for (const endpoint of endpointFiles()) {
-      const module = await import(endpoint.file) as { default: EventHandler }
-      router[endpoint.method as 'get' | 'post'](endpoint.route, module.default)
-    }
-    app.use(router)
-    handler = toWebHandler(app)
+    handler = await mount()
   })
 
   afterAll(async () => {

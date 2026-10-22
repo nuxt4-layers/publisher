@@ -54,3 +54,8 @@ The layer was specified and tested before it was built, phase by phase on one pu
 - `tests/headless.test.ts` replaces the presentation tests: no screens, routes, components, slots, styles, display wording or design-system dependency; `usePublisher()` holds data and actions only.
 - Removed: the pages, components, renderers, slots, routes module, wording, class map, pairings, `tailwind.css`, Theme Manager, Playwright and the browser tests. The playground is a server-only host.
 - Also: `rich-text` pinned at `v2.0.0`, which normalises formatted text itself. Next: [step 5](headless-migration.md), the switchable API.
+
+## Headless migration, step 5: a switchable API (done)
+
+- `runtimeConfig.publisher.api.enabled` (default on; `NUXT_PUBLISHER_API_ENABLED=false`) switches `/api/publisher/*` off: every request answers a plain 404, before any port or origin check.
+- Green: `tests/http.test.ts` "switching the API off", and the built playground with the variable set both ways.

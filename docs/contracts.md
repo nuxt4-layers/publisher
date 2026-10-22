@@ -271,6 +271,8 @@ Auto-imported in the host's server code. The subject is always the signed-in pri
 
 Under `/api/publisher`. Endpoints take the subject only from the host's resolver, parse queries and bodies with strict schemas, call the server functions (never SQL), are wrapped in one handler (`publisherHandler`), and answer errors as coarse codes. State-changing requests must carry an `Origin` on the request's own host.
 
+The host may switch the API off: `runtimeConfig.publisher.api.enabled: false`, or `NUXT_PUBLISHER_API_ENABLED=false`. It is on by default. Off, every `/api/publisher/*` request answers a plain 404 before any port is asked or origin checked, so the API looks absent; the server functions still work.
+
 | Method and path | Access | Does |
 |---|---|---|
 | `GET /resolve?path=…&preview=1` | Anyone; a preview needs `view-draft` | §7.1. A preview is `Cache-Control: private, no-store` |
@@ -305,7 +307,7 @@ The publisher draws nothing (ADR-0009): no pages, routes, components, slots, sty
 |---|---|
 | The contract (`./contracts`) | Types, schemas and the lifecycle table |
 | Server functions (§13) | Every task, for the host's server |
-| The HTTP API (§14) | The same tasks, for browsers and other services |
+| The HTTP API (§14) | The same tasks, for browsers and other services; the host may switch it off |
 | `usePublisher()` | A typed client for the host's own screens: data and actions only; `publisherErrorOf` reads a failure's code |
 | Safe trees (§6.4), feeds and sitemap entries (§8) | Content and data formats that are safe to draw |
 | Events (§12) | What happened |
